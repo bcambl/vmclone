@@ -1,0 +1,5 @@
+127.0.0.1		localhost.localdomain localhost
+::1			localhost loopback
+
+192.168.1.45		testserver testserver.example.com
+192.168.20.10		testserver-bkp
