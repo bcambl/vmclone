@@ -25,32 +25,18 @@ This will allow the system to re-generate the files upon next (re)boot.
 """
 __author__ = 'Blayne Campbell'
 __date__ = '2014-01-29'
-__version__ = '1.0.0'
+__version__ = '1.0.1'
 
 from netaddr import IPNetwork
+from time import sleep
 import subprocess
 import glob
 import sys
 import os
 import re
 
-#### Development/Test Variables #
-domain = 'example.com'
-hosts = 'test_files/hosts-sample'  # hosts
-network = 'test_files/network-sample'  # network
-p_ifcfg = 'test_files/p_ifcfg-sample'  # ifcfg-eth0
-b_ifcfg = 'test_files/b_ifcfg-sample'  # ifcfg-eth1
-persistent = 'test_files/persistent-sample'  # 70-persistent-net.rules
-#### Development End #
-
-#### Production Variables #
-# domain = 'example.com'
-# hosts = '/etc/hosts'
-# network = '/etc/sysconfig/network'
-# p_ifcfg = '/etc/sysconfig/network-scripts/ifcfg-eth0'
-# b_ifcfg = '/etc/sysconfig/network-scripts/ifcfg-eth1'
-# persistent = '/etc/udev/rules.d/70-persistent-net.rules'
-#### Production End #
+# Import Settings
+from settings import *
 
 #### Validations #
 valip = '\\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.)' \
@@ -124,6 +110,24 @@ def genuuid(cfgfile):
             replace(cfgfile, 'UUID="%s"' % valuuid, 'UUID="%s"' % newuuid)
         else:
             pass
+
+
+def set_nameservers():
+    with open(resolvconf, 'r') as f:
+        lines = f.readlines()
+    with open(resolvconf, 'w') as f:
+        for line in lines:
+            if "nameserver" in line:
+                pass
+            else:
+                f.write(line)
+    for ns in nameservers:
+        if val(ns):
+            r = subprocess.Popen(['ping', '-c', '1', '-w2', '%s' % ns],
+                                 stdout=subprocess.PIPE)
+            if r.wait() == 0:
+                with open(resolvconf, 'a') as f:
+                    f.write('\nnameserver %s' % ns)
 
 
 def clean_shutdown():
@@ -267,6 +271,10 @@ def main(preconf):
             # hostfile replacements
             replace(hosts, prhpat, prhost)
             replace(hosts, bkhpat, bkhost)
+            # Restart the network service
+            subprocess.Popen(['service', 'network', 'restart'])
+            print("Wait 15 seconds while we restart the network service...")
+            sleep(15)
         else:
             print("OK.. No changes have been made to this system.\n"
                   "The configuration you have entered will be saved for "
@@ -285,6 +293,7 @@ if __name__ == "__main__":
             main(1)
     except IOError:
         main(2)
+    set_nameservers()
     clean = raw_input("Would you like to 'un-identify' the server"
                       " and shutdown? [y/N]")
     if 'y' in clean:
