@@ -4,8 +4,9 @@ This script assists with cloning Linux Virtual Machines.
 
 Assumptions:
 -----------
-Linux distribution is CentOS/RHEL 5/6 (script may require tweaks for others)
-The virtual machine is configured with two interfaces (Primary & Backup)
+- Linux distribution is CentOS/RHEL 5/6 (script may require tweaks for others)
+- The virtual machine is configured with two interfaces (Primary & Backup)
+- Default gateway on your network is the first available ip in the range
 
 The following files will be modified:
 

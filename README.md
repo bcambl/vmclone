@@ -28,4 +28,4 @@ This will allow the system to re-generate the files upon next (re)boot.
 
 *The script requires root to execute.*
 
-*Comment out the Development variables and uncomment the 'production' variables*
+*Comment out the 'development' variables and uncomment the 'production' variables*
