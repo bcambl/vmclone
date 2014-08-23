@@ -1,0 +1,8 @@
+# --- GENERAL CONFIGURATION ---
+server  aaa.bbb.ccc.ddd
+server  127.127.1.0
+fudge   127.127.1.0 stratum 10
+
+# Drift file.
+
+driftfile /etc/ntp/drift
