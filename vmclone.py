@@ -127,8 +127,27 @@ def set_nameservers():
             r = subprocess.Popen(['ping', '-c', '1', '-w2', '%s' % ns],
                                  stdout=subprocess.PIPE)
             if r.wait() == 0:
+                print('Adding nameserver: %s' % ns)
                 with open(resolvconf, 'a') as f:
                     f.write('\nnameserver %s' % ns)
+
+
+def set_ntpservers():
+    with open(ntpconf, 'r') as f:
+        lines = f.readlines()
+    with open(ntpconf, 'w') as f:
+        for line in lines:
+            if "server" in line:
+                pass
+            else:
+                f.write(line)
+    for ntp in ntpservers:
+        r = subprocess.Popen(['ntpdate', '%s' % ntp],
+                             stdout=subprocess.PIPE)
+        if r.wait() == 0:
+            print('Adding ntp server: %s' % ntp)
+            with open(ntpconf, 'a') as f:
+                f.write('\nserver %s' % ntp)
 
 
 def clean_shutdown():
@@ -295,6 +314,7 @@ if __name__ == "__main__":
     except IOError:
         main(2)
     set_nameservers()
+    set_ntpservers()
     clean = raw_input("Would you like to 'un-identify' the server"
                       " and shutdown? [y/N]")
     if 'y' in clean:
