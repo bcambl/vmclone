@@ -26,7 +26,7 @@ This will allow the system to re-generate the files upon next (re)boot.
 """
 __author__ = 'Blayne Campbell'
 __date__ = '2014-01-29'
-__version__ = '1.0.1'
+__version__ = '1.0.2'
 
 from netaddr import IPNetwork
 from time import sleep
@@ -70,7 +70,7 @@ def findmac(iface):
     for i in pnet:
         if iface in i:
             mac = i.index('ATTR{address}==')
-            mac = i[mac+16:mac+33]
+            mac = i[mac + 16:mac + 33]
             return mac.upper()
 
 
@@ -142,7 +142,8 @@ def set_ntpservers():
             else:
                 f.write(line)
     for ntp in ntpservers:
-        r = subprocess.Popen(['ntpdate', '%s' % ntp], stdout=subprocess.PIPE)
+        r = subprocess.Popen(['ntpdate', '-u', '%s' % ntp],
+                             stdout=subprocess.PIPE)
         if r.wait() == 0:
             print('Adding ntp server: %s' % ntp)
             with open(ntpconf, 'a') as f:
@@ -199,7 +200,7 @@ def main(preconf):
         while True:
             if preconf == 1:
                 clone.prip = raw_input('Primary IP Address[%s]: '
-                                 % vmconf.prip) or vmconf.prip
+                                       % vmconf.prip) or vmconf.prip
                 if val(clone.prip):
                     clone.new_prip = 'IPADDR="%s"' % clone.prip
                     break
@@ -211,7 +212,7 @@ def main(preconf):
         while True:
             if preconf == 1:
                 clone.prnm = raw_input('Primary Netmask[%s]: '
-                                 % vmconf.prnm) or vmconf.prnm
+                                       % vmconf.prnm) or vmconf.prnm
                 if val(clone.prnm):
                     clone.new_prnm = 'NETMASK="%s"' % clone.prnm
                     break
@@ -232,7 +233,7 @@ def main(preconf):
         while True:
             if preconf == 1:
                 clone.bkip = raw_input('Backup IP Address[%s]: '
-                                 % vmconf.bkip) or vmconf.bkip
+                                       % vmconf.bkip) or vmconf.bkip
                 if val(clone.bkip):
                     clone.new_bkip = 'IPADDR="%s"' % clone.bkip
                     break
@@ -244,7 +245,7 @@ def main(preconf):
         while True:
             if preconf == 1:
                 clone.bknm = raw_input('Backup Netmask[%s]: '
-                                 % vmconf.bknm) or vmconf.bknm
+                                       % vmconf.bknm) or vmconf.bknm
                 if val(clone.bknm):
                     clone.new_bknm = 'NETMASK="%s"' % clone.bknm
                     break
@@ -262,7 +263,7 @@ def main(preconf):
             if val(clone.bkgw):
                 clone.new_bkgw = 'GATEWAY="%s"' % clone.bkgw
                 break
-        print("\n"*2 + "Recording configuration (see vmconf.py)")
+        print("\n" * 2 + "Recording configuration (see vmconf.py)")
         with open('vmconf.py', 'w') as f:
             f.write('""" Rapid Deployment Server Configuration """' + '\n')
             f.write('\n')
