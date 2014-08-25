@@ -142,8 +142,7 @@ def set_ntpservers():
             else:
                 f.write(line)
     for ntp in ntpservers:
-        r = subprocess.Popen(['ntpdate', '%s' % ntp],
-                             stdout=subprocess.PIPE)
+        r = subprocess.Popen(['ntpdate', '%s' % ntp], stdout=subprocess.PIPE)
         if r.wait() == 0:
             print('Adding ntp server: %s' % ntp)
             with open(ntpconf, 'a') as f:
@@ -168,126 +167,141 @@ def clean_shutdown():
     print(output)
 
 
-# Set MAC Addresses
-new_prmac = 'HWADDR="%s"' % findmac('eth0')
-new_bkmac = 'HWADDR="%s"' % findmac('eth1')
-
-# Matching for ifcfg-ethX file
-oldip = 'IPADDR="%s"' % valip
-oldnm = 'NETMASK="%s"' % valip
-oldgw = 'GATEWAY="%s"' % valip
-oldmac = 'HWADDR="%s"' % valmac
-proto_dhcp = 'BOOTPROTO="dhcp"'
-proto_stat = 'BOOTPROTO="none"'
+class ServerClone:
+    def __init__(self):
+        self.old_serv = curhost('HOSTNAME')
+        self.new_serv = raw_input('Enter NEW Server Name: ')
+        self.new_prmac = 'HWADDR="%s"' % findmac('eth0')
+        self.new_bkmac = 'HWADDR="%s"' % findmac('eth1')
+        self.oldip = 'IPADDR="%s"' % valip
+        self.oldnm = 'NETMASK="%s"' % valip
+        self.oldgw = 'GATEWAY="%s"' % valip
+        self.oldmac = 'HWADDR="%s"' % valmac
+        self.proto_dhcp = 'BOOTPROTO="dhcp"'
+        self.proto_stat = 'BOOTPROTO="none"'
+        self.prip = None
+        self.bkip = None
+        self.prnm = None
+        self.prgw = None
+        self.bknm = None
+        self.bkgw = None
+        self.new_prip = None
+        self.new_prnm = None
+        self.new_prgw = None
+        self.new_bkip = None
+        self.new_bknm = None
+        self.new_bkgw = None
 
 
 def main(preconf):
-    global prip, bkip, prnm, prgw, bknm, bkgw, new_prip
-    global new_prnm, new_prgw, new_bkip, new_bknm, new_bkgw
-    old_serv = curhost('HOSTNAME')
-    new_serv = raw_input('Enter NEW Server Name: ')
+    clone = ServerClone()
     while True:
         while True:
             if preconf == 1:
-                prip = raw_input('Primary IP Address[%s]: '
+                clone.prip = raw_input('Primary IP Address[%s]: '
                                  % vmconf.prip) or vmconf.prip
-                if val(prip):
-                    new_prip = 'IPADDR="%s"' % prip
+                if val(clone.prip):
+                    clone.new_prip = 'IPADDR="%s"' % clone.prip
                     break
             else:
-                prip = raw_input('Primary IP Address: ')
-                if val(prip):
-                    new_prip = 'IPADDR="%s"' % prip
+                clone.prip = raw_input('Primary IP Address: ')
+                if val(clone.prip):
+                    clone.new_prip = 'IPADDR="%s"' % clone.prip
                     break
         while True:
             if preconf == 1:
-                prnm = raw_input('Primary Netmask[%s]: '
+                clone.prnm = raw_input('Primary Netmask[%s]: '
                                  % vmconf.prnm) or vmconf.prnm
-                if val(prnm):
-                    new_prnm = 'NETMASK="%s"' % prnm
+                if val(clone.prnm):
+                    clone.new_prnm = 'NETMASK="%s"' % clone.prnm
                     break
             else:
-                prnm = raw_input('Primary Netmask: ')
-                if val(prnm):
-                    new_prnm = 'NETMASK="%s"' % prnm
+                clone.prnm = raw_input('Primary Netmask: ')
+                if val(clone.prnm):
+                    clone.new_prnm = 'NETMASK="%s"' % clone.prnm
                     break
         # Calculate Gateway based on IP & Netmask
-        prcidr = sum([bin(int(x)).count('1') for x in prnm.split('.')])
-        prgw = IPNetwork('%s/%s' % (prip, prcidr))[1].format()
+        prcidr = sum([bin(int(x)).count('1') for x in clone.prnm.split('.')])
+        clone.prgw = IPNetwork('%s/%s' % (clone.prip, prcidr))[1].format()
         while True:
-            prgw = raw_input('Primary Gateway IP[%s]: ' % prgw) or prgw
-            if val(prgw):
-                new_prgw = 'GATEWAY="%s"' % prgw
+            clone.prgw = raw_input('Primary Gateway IP[%s]: '
+                                   % clone.prgw) or clone.prgw
+            if val(clone.prgw):
+                clone.new_prgw = 'GATEWAY="%s"' % clone.prgw
                 break
         while True:
             if preconf == 1:
-                bkip = raw_input('Backup IP Address[%s]: '
+                clone.bkip = raw_input('Backup IP Address[%s]: '
                                  % vmconf.bkip) or vmconf.bkip
-                if val(bkip):
-                    new_bkip = 'IPADDR="%s"' % bkip
+                if val(clone.bkip):
+                    clone.new_bkip = 'IPADDR="%s"' % clone.bkip
                     break
             else:
-                bkip = raw_input('Backup IP Address: ')
-                if val(bkip):
-                    new_bkip = 'IPADDR="%s"' % bkip
+                clone.bkip = raw_input('Backup IP Address: ')
+                if val(clone.bkip):
+                    clone.new_bkip = 'IPADDR="%s"' % clone.bkip
                     break
         while True:
             if preconf == 1:
-                bknm = raw_input('Backup Netmask[%s]: '
+                clone.bknm = raw_input('Backup Netmask[%s]: '
                                  % vmconf.bknm) or vmconf.bknm
-                if val(bknm):
-                    new_bknm = 'NETMASK="%s"' % bknm
+                if val(clone.bknm):
+                    clone.new_bknm = 'NETMASK="%s"' % clone.bknm
                     break
             else:
-                bknm = raw_input('Backup Netmask: ')
-                if val(bknm):
-                    new_bknm = 'NETMASK="%s"' % bknm
+                clone.bknm = raw_input('Backup Netmask: ')
+                if val(clone.bknm):
+                    clone.new_bknm = 'NETMASK="%s"' % clone.bknm
                     break
         # Calculate Gateway based on IP & Netmask
-        bkcidr = sum([bin(int(x)).count('1') for x in bknm.split('.')])
-        bkgw = IPNetwork('%s/%s' % (bkip, bkcidr))[1].format()
+        bkcidr = sum([bin(int(x)).count('1') for x in clone.bknm.split('.')])
+        clone.bkgw = IPNetwork('%s/%s' % (clone.bkip, bkcidr))[1].format()
         while True:
-            bkgw = raw_input('Backup Gateway IP[%s]: ' % bkgw) or bkgw
-            if val(bkgw):
-                new_bkgw = 'GATEWAY="%s"' % bkgw
+            clone.bkgw = raw_input('Backup Gateway IP[%s]: '
+                                   % clone.bkgw) or clone.bkgw
+            if val(clone.bkgw):
+                clone.new_bkgw = 'GATEWAY="%s"' % clone.bkgw
                 break
         print("\n"*2 + "Recording configuration (see vmconf.py)")
         with open('vmconf.py', 'w') as f:
-            f.write('""" Rapid Deployment Server Configuration """' + '\n'*2)
+            f.write('""" Rapid Deployment Server Configuration """' + '\n')
+            f.write('\n')
             f.write('# Primary Interface (%s)' % p_ifcfg + '\n')
-            f.write('prip = "%s"' % prip + '  # Primary IP\n')
-            f.write('prnm = "%s"' % prnm + '  # Primary NetMask\n')
-            f.write('prgw = "%s"' % prgw + '  # Primary Gateway' + '\n'*2)
+            f.write('prip = "%s"' % clone.prip + '  # Primary IP\n')
+            f.write('prnm = "%s"' % clone.prnm + '  # Primary NetMask\n')
+            f.write('prgw = "%s"' % clone.prgw + '  # Primary Gateway' + '\n')
+            f.write('\n')
             f.write('# Backup Interface (%s)' % b_ifcfg + '\n')
-            f.write('bkip = "%s"' % bkip + '  # Backup IP\n')
-            f.write('bknm = "%s"' % bknm + '  # Backup NetMask\n')
-            f.write('bkgw = "%s"' % bkgw + '  # Backup Gateway\n')
+            f.write('bkip = "%s"' % clone.bkip + '  # Backup IP\n')
+            f.write('bknm = "%s"' % clone.bknm + '  # Backup NetMask\n')
+            f.write('bkgw = "%s"' % clone.bkgw + '  # Backup Gateway\n')
             f.close()
         applycfg = raw_input("Would you like apply the above "
                              "configuration?[y/N]")
         if 'y' in applycfg:
             # Primary interface ifcfg
-            replace(p_ifcfg, oldip, new_prip)
-            replace(p_ifcfg, oldnm, new_prnm)
-            replace(p_ifcfg, oldgw, new_prgw)
-            replace(p_ifcfg, oldmac, new_prmac)
-            replace(p_ifcfg, proto_dhcp, proto_stat)
+            replace(p_ifcfg, clone.oldip, clone.new_prip)
+            replace(p_ifcfg, clone.oldnm, clone.new_prnm)
+            replace(p_ifcfg, clone.oldgw, clone.new_prgw)
+            replace(p_ifcfg, clone.oldmac, clone.new_prmac)
+            replace(p_ifcfg, clone.proto_dhcp, clone.proto_stat)
             genuuid(p_ifcfg)
             # Backup interface ifcfg
-            replace(b_ifcfg, oldip, new_bkip)
-            replace(b_ifcfg, oldnm, new_bknm)
-            replace(b_ifcfg, oldgw, new_bkgw)
-            replace(b_ifcfg, oldmac, new_bkmac)
-            replace(b_ifcfg, proto_dhcp, proto_stat)
+            replace(b_ifcfg, clone.oldip, clone.new_bkip)
+            replace(b_ifcfg, clone.oldnm, clone.new_bknm)
+            replace(b_ifcfg, clone.oldgw, clone.new_bkgw)
+            replace(b_ifcfg, clone.oldmac, clone.new_bkmac)
+            replace(b_ifcfg, clone.proto_dhcp, clone.proto_stat)
             genuuid(b_ifcfg)
             # network file
-            replace(network, old_serv, new_serv)
+            replace(network, clone.old_serv, clone.new_serv)
             # Hosts strings
-            prhpat = '%s%s%s %s.%s\n' % (valip, tabs, old_serv,
-                                         old_serv, domain)
-            bkhpat = '%s%s%s-bkp\n' % (valip, tabs, old_serv)
-            prhost = '%s\t\t%s %s.%s\n' % (prip, new_serv, new_serv, domain)
-            bkhost = '%s\t\t%s-bkp\n' % (bkip, new_serv)
+            prhpat = '%s%s%s %s.%s\n' % (valip, tabs, clone.old_serv,
+                                         clone.old_serv, domain)
+            bkhpat = '%s%s%s-bkp\n' % (valip, tabs, clone.old_serv)
+            prhost = '%s\t\t%s %s.%s\n' % (clone.prip, clone.new_serv,
+                                           clone.new_serv, domain)
+            bkhost = '%s\t\t%s-bkp\n' % (clone.bkip, clone.new_serv)
             # hostfile replacements
             replace(hosts, prhpat, prhost)
             replace(hosts, bkhpat, bkhost)
