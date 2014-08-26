@@ -26,7 +26,7 @@ This will allow the system to re-generate the files upon next (re)boot.
 """
 __author__ = 'Blayne Campbell'
 __date__ = '2014-01-29'
-__version__ = '1.0.2'
+__version__ = '1.0.5'
 
 from netaddr import IPNetwork
 from time import sleep
@@ -47,6 +47,15 @@ valuuid = '\\b([0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]' \
           '{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12})\\b'
 tabs = '\\b(\\t+)\\b'
 #### Validations End #
+
+
+def show_usage():
+    """
+    This sis the docstingzor!
+    """
+    print("\nUsage:\nclone: re-identify this server (write networking files)")
+    print("check: show available Name servers and NTP servers\n")
+    sys.exit('Try: %s <check|clone>\n' % sys.argv[0])
 
 
 def curhost(lookup):
@@ -113,41 +122,51 @@ def genuuid(cfgfile):
             pass
 
 
-def set_nameservers():
-    with open(resolvconf, 'r') as f:
-        lines = f.readlines()
-    with open(resolvconf, 'w') as f:
-        for line in lines:
-            if "nameserver" in line:
-                pass
-            else:
-                f.write(line)
+def get_nameservers(write=None):
+    print("\nChecking for available Name Servers..")
+    if write:
+        with open(resolvconf, 'r') as f:
+            lines = f.readlines()
+        with open(resolvconf, 'w') as f:
+            for line in lines:
+                if "nameserver" in line:
+                    pass
+                else:
+                    f.write(line)
     for ns in nameservers:
         if val(ns):
             r = subprocess.Popen(['ping', '-c', '1', '-w2', '%s' % ns],
                                  stdout=subprocess.PIPE)
             if r.wait() == 0:
-                print('Adding nameserver: %s' % ns)
-                with open(resolvconf, 'a') as f:
-                    f.write('\nnameserver %s' % ns)
+                print('nameserver %s' % ns)
+                if write:
+                    with open(resolvconf, 'a') as f:
+                        f.write('\nnameserver %s' % ns)
+    if write:
+        print("The above servers have been written to %s" % resolvconf)
 
 
-def set_ntpservers():
-    with open(ntpconf, 'r') as f:
-        lines = f.readlines()
-    with open(ntpconf, 'w') as f:
-        for line in lines:
-            if "server" in line:
-                pass
-            else:
-                f.write(line)
+def get_ntpservers(write=None):
+    print("\nChecking for available NTP Servers..")
+    if write:
+        with open(ntpconf, 'r') as f:
+            lines = f.readlines()
+        with open(ntpconf, 'w') as f:
+            for line in lines:
+                if "server" in line:
+                    pass
+                else:
+                    f.write(line)
     for ntp in ntpservers:
         r = subprocess.Popen(['ntpdate', '-u', '%s' % ntp],
                              stdout=subprocess.PIPE)
         if r.wait() == 0:
-            print('Adding ntp server: %s' % ntp)
-            with open(ntpconf, 'a') as f:
-                f.write('\nserver %s' % ntp)
+            print('server %s' % ntp)
+            if write:
+                with open(ntpconf, 'a') as f:
+                    f.write('\nserver %s' % ntp)
+    if write:
+        print("The above servers have been written to %s" % ntpconf)
 
 
 def clean_shutdown():
@@ -171,7 +190,7 @@ def clean_shutdown():
 class ServerClone:
     def __init__(self):
         self.old_serv = curhost('HOSTNAME')
-        self.new_serv = raw_input('Enter NEW Server Name: ')
+        self.new_serv = None
         self.new_prmac = 'HWADDR="%s"' % findmac('eth0')
         self.new_bkmac = 'HWADDR="%s"' % findmac('eth1')
         self.oldip = 'IPADDR="%s"' % valip
@@ -193,9 +212,60 @@ class ServerClone:
         self.new_bknm = None
         self.new_bkgw = None
 
+    def set_hostname(self):
+        while not self.new_serv:
+            self.new_serv = raw_input('Enter NEW Server Name: ')
+
+    def confirm_settings(self):
+        apply = raw_input("Would you like apply the above "
+                             "configuration?[y/N]")
+        if 'y' in apply:
+            self.commit_settings()
+        else:
+            print("OK.. No changes have been made to this system.\n"
+                  "The configuration you have entered will be saved for "
+                  "next time (see vmconf.py)")
+            sys.exit()
+
+    def commit_settings(self):
+        try:
+            # Primary interface ifcfg
+            replace(p_ifcfg, self.oldip, self.new_prip)
+            replace(p_ifcfg, self.oldnm, self.new_prnm)
+            replace(p_ifcfg, self.oldgw, self.new_prgw)
+            replace(p_ifcfg, self.oldmac, self.new_prmac)
+            replace(p_ifcfg, self.proto_dhcp, self.proto_stat)
+            genuuid(p_ifcfg)
+            # Backup interface ifcfg
+            replace(b_ifcfg, self.oldip, self.new_bkip)
+            replace(b_ifcfg, self.oldnm, self.new_bknm)
+            replace(b_ifcfg, self.oldgw, self.new_bkgw)
+            replace(b_ifcfg, self.oldmac, self.new_bkmac)
+            replace(b_ifcfg, self.proto_dhcp, self.proto_stat)
+            genuuid(b_ifcfg)
+            # network file
+            replace(network, self.old_serv, self.new_serv)
+            # Hosts strings
+            prhpat = '%s%s%s %s.%s\n' % (valip, tabs, self.old_serv,
+                                         self.old_serv, domain)
+            bkhpat = '%s%s%s-bkp\n' % (valip, tabs, self.old_serv)
+            prhost = '%s\t\t%s %s.%s\n' % (self.prip, self.new_serv,
+                                           self.new_serv, domain)
+            bkhost = '%s\t\t%s-bkp\n' % (self.bkip, self.new_serv)
+            # hostfile replacements
+            replace(hosts, prhpat, prhost)
+            replace(hosts, bkhpat, bkhost)
+            # Restart the network service
+            subprocess.Popen(['service', 'network', 'restart'])
+            print("Wait 15 seconds while we restart the network service...")
+            sleep(15)
+        except Exception as e:
+            sys.exit(e)
+
 
 def main(preconf):
     clone = ServerClone()
+    clone.set_hostname()
     while True:
         while True:
             if preconf == 1:
@@ -263,7 +333,7 @@ def main(preconf):
             if val(clone.bkgw):
                 clone.new_bkgw = 'GATEWAY="%s"' % clone.bkgw
                 break
-        print("\n" * 2 + "Recording configuration (see vmconf.py)")
+        print("\n" * 2 + "Saving configuration (see vmconf.py)")
         with open('vmconf.py', 'w') as f:
             f.write('""" Rapid Deployment Server Configuration """' + '\n')
             f.write('\n')
@@ -277,63 +347,35 @@ def main(preconf):
             f.write('bknm = "%s"' % clone.bknm + '  # Backup NetMask\n')
             f.write('bkgw = "%s"' % clone.bkgw + '  # Backup Gateway\n')
             f.close()
-        applycfg = raw_input("Would you like apply the above "
-                             "configuration?[y/N]")
-        if 'y' in applycfg:
-            # Primary interface ifcfg
-            replace(p_ifcfg, clone.oldip, clone.new_prip)
-            replace(p_ifcfg, clone.oldnm, clone.new_prnm)
-            replace(p_ifcfg, clone.oldgw, clone.new_prgw)
-            replace(p_ifcfg, clone.oldmac, clone.new_prmac)
-            replace(p_ifcfg, clone.proto_dhcp, clone.proto_stat)
-            genuuid(p_ifcfg)
-            # Backup interface ifcfg
-            replace(b_ifcfg, clone.oldip, clone.new_bkip)
-            replace(b_ifcfg, clone.oldnm, clone.new_bknm)
-            replace(b_ifcfg, clone.oldgw, clone.new_bkgw)
-            replace(b_ifcfg, clone.oldmac, clone.new_bkmac)
-            replace(b_ifcfg, clone.proto_dhcp, clone.proto_stat)
-            genuuid(b_ifcfg)
-            # network file
-            replace(network, clone.old_serv, clone.new_serv)
-            # Hosts strings
-            prhpat = '%s%s%s %s.%s\n' % (valip, tabs, clone.old_serv,
-                                         clone.old_serv, domain)
-            bkhpat = '%s%s%s-bkp\n' % (valip, tabs, clone.old_serv)
-            prhost = '%s\t\t%s %s.%s\n' % (clone.prip, clone.new_serv,
-                                           clone.new_serv, domain)
-            bkhost = '%s\t\t%s-bkp\n' % (clone.bkip, clone.new_serv)
-            # hostfile replacements
-            replace(hosts, prhpat, prhost)
-            replace(hosts, bkhpat, bkhost)
-            # Restart the network service
-            subprocess.Popen(['service', 'network', 'restart'])
-            print("Wait 15 seconds while we restart the network service...")
-            sleep(15)
-        else:
-            print("OK.. No changes have been made to this system.\n"
-                  "The configuration you have entered will be saved for "
-                  "next time")
+        clone.confirm_settings()
         break
 
 if __name__ == "__main__":
-    print("\n" * 40)
-    print(__description__ + '\n')
+    os.system("clear")
     if not os.geteuid() == 0:
         sys.exit("\nOnly root can run this script\n")
-    try:
-        with open('vmconf.py'):
-            print("Previous Configuration Detected. Loading...\n")
-            import vmconf
-            main(1)
-    except IOError:
-        main(2)
-    set_nameservers()
-    set_ntpservers()
-    clean = raw_input("Would you like to 'un-identify' the server"
-                      " and shutdown? [y/N]")
-    if 'y' in clean:
-        clean_shutdown()
+    if len(sys.argv) == 2:
+        if sys.argv[1] == 'check':
+            get_nameservers()
+            get_ntpservers()
+        elif sys.argv[1] == 'clone':
+            try:
+                with open('vmconf.py'):
+                    print("Previous Configuration Detected. Loading...\n")
+                    import vmconf
+                    main(1)
+            except IOError:
+                main(2)
+            get_nameservers(write='yes')
+            get_ntpservers(write='yes')
+            clean = raw_input("Would you like to 'un-identify' the server"
+                              " and shutdown? [y/N]")
+            if 'y' in clean:
+                clean_shutdown()
+            else:
+                pass
+        else:
+            show_usage()
     else:
-        pass
-    print("\nComplete")
+        show_usage()
+    print("Script exiting..")
