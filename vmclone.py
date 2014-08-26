@@ -50,11 +50,8 @@ tabs = '\\b(\\t+)\\b'
 
 
 def show_usage():
-    """
-    This sis the docstingzor!
-    """
-    print("\nUsage:\nclone: re-identify this server (write networking files)")
-    print("check: show available Name servers and NTP servers\n")
+    print("\nUsage:\nclone: Re-identify this server (write networking files)")
+    print("check: Show available Name servers and NTP servers\n")
     sys.exit('Try: %s <check|clone>\n' % sys.argv[0])
 
 
@@ -159,7 +156,8 @@ def get_ntpservers(write=None):
                     f.write(line)
     for ntp in ntpservers:
         r = subprocess.Popen(['ntpdate', '-u', '%s' % ntp],
-                             stdout=subprocess.PIPE)
+                             stdout=subprocess.PIPE,
+                             stderr=subprocess.STDOUT)
         if r.wait() == 0:
             print('server %s' % ntp)
             if write:
@@ -216,13 +214,27 @@ class ServerClone:
         while not self.new_serv:
             self.new_serv = raw_input('Enter NEW Server Name: ')
 
+    def show_settings(self):
+        os.system('clear')
+        print("Proposed Network Configuration\n"
+              "------------------------------\n\n"
+              "Host Name: %s\n\n"
+              "Primary IP: %s\n"
+              "Primary NM: %s\n"
+              "Primary GW: %s\n\n"
+              "Backup IP: %s\n"
+              "Backup NM: %s\n"
+              "Backup GW: %s\n\n"
+              % (self.new_serv, self.prip, self.prnm, self.prnm,
+                 self.bkip, self.bknm, self.bkgw))
+
     def confirm_settings(self):
-        apply = raw_input("Would you like apply the above "
-                             "configuration?[y/N]")
-        if 'y' in apply:
+        applyconf = raw_input("Would you like apply the above "
+                              "configuration?[y/N]")
+        if 'y' in applyconf:
             self.commit_settings()
         else:
-            print("OK.. No changes have been made to this system.\n"
+            print("\nOK.. No changes have been made to this system.\n"
                   "The configuration you have entered will be saved for "
                   "next time (see vmconf.py)")
             sys.exit()
@@ -347,6 +359,7 @@ def main(preconf):
             f.write('bknm = "%s"' % clone.bknm + '  # Backup NetMask\n')
             f.write('bkgw = "%s"' % clone.bkgw + '  # Backup Gateway\n')
             f.close()
+        clone.show_settings()
         clone.confirm_settings()
         break
 
