@@ -120,7 +120,8 @@ def genuuid(cfgfile):
 
 
 def get_nameservers(write=None):
-    print("\nChecking for available Name Servers..")
+    print("\nChecking for available Name Servers..\n"
+          "The following servers are reachable:\n")
     if write:
         with open(resolvconf, 'r') as f:
             lines = f.readlines()
@@ -143,28 +144,15 @@ def get_nameservers(write=None):
         print("The above servers have been written to %s" % resolvconf)
 
 
-def get_ntpservers(write=None):
-    print("\nChecking for available NTP Servers..")
-    if write:
-        with open(ntpconf, 'r') as f:
-            lines = f.readlines()
-        with open(ntpconf, 'w') as f:
-            for line in lines:
-                if "server" in line:
-                    pass
-                else:
-                    f.write(line)
+def get_ntpservers():
+    print("\nChecking for available NTP Servers..\n"
+          "The following servers are reachable:\n")
     for ntp in ntpservers:
         r = subprocess.Popen(['ntpdate', '-u', '%s' % ntp],
                              stdout=subprocess.PIPE,
                              stderr=subprocess.STDOUT)
         if r.wait() == 0:
             print('server %s' % ntp)
-            if write:
-                with open(ntpconf, 'a') as f:
-                    f.write('\nserver %s' % ntp)
-    if write:
-        print("The above servers have been written to %s" % ntpconf)
 
 
 def clean_shutdown():
@@ -209,10 +197,45 @@ class ServerClone:
         self.new_bkip = None
         self.new_bknm = None
         self.new_bkgw = None
+        self.ntppos = None
 
     def set_hostname(self):
         while not self.new_serv:
             self.new_serv = raw_input('Enter NEW Server Name: ')
+
+    def set_ntpservers(self):
+        print("\nChecking for available NTP Servers..\n"
+              "The following servers are reachable:\n")
+        with open(ntpconf, 'r') as f:
+            lines = f.readlines()
+            self.ntppos = [i for i, item in enumerate(lines)
+                           if re.search(r'\bserver\b', item)]
+        with open(ntpconf, 'w') as f:
+            for line in lines:
+                if "server" in line:
+                    pass
+                else:
+                    f.write(line)
+        accessible = []
+        for ntp in ntpservers:
+            r = subprocess.Popen(['ntpdate', '-u', '%s' % ntp],
+                                 stdout=subprocess.PIPE,
+                                 stderr=subprocess.STDOUT)
+            if r.wait() == 0:
+                accessible.append(ntp)
+                print('server %s' % ntp)
+        with open(ntpconf, 'r') as f:
+            lines = f.readlines()
+        for i, a in enumerate(accessible):
+            if i == 0:
+                newline = '\nserver %s\n' % a
+                lines.insert(self.ntppos[0], newline)
+            else:
+                newline = '\nserver %s' % a
+                lines.insert(self.ntppos[0], newline)
+        with open(ntpconf, 'w') as out:
+            out.writelines(lines)
+        print("The above servers have been written to %s" % ntpconf)
 
     def show_settings(self):
         os.system('clear')
@@ -225,7 +248,7 @@ class ServerClone:
               "Backup IP: %s\n"
               "Backup NM: %s\n"
               "Backup GW: %s\n\n"
-              % (self.new_serv, self.prip, self.prnm, self.prnm,
+              % (self.new_serv, self.prip, self.prnm, self.prgw,
                  self.bkip, self.bknm, self.bkgw))
 
     def confirm_settings(self):
@@ -236,7 +259,7 @@ class ServerClone:
         else:
             print("\nOK.. No changes have been made to this system.\n"
                   "The configuration you have entered will be saved for "
-                  "next time (see vmconf.py)")
+                  "next time (see vmconf.py)\n")
             sys.exit()
 
     def commit_settings(self):
@@ -361,6 +384,8 @@ def main(preconf):
             f.close()
         clone.show_settings()
         clone.confirm_settings()
+        get_nameservers(write=True)
+        clone.set_ntpservers()
         break
 
 if __name__ == "__main__":
@@ -379,8 +404,6 @@ if __name__ == "__main__":
                     main(1)
             except IOError:
                 main(2)
-            get_nameservers(write='yes')
-            get_ntpservers(write='yes')
             clean = raw_input("Would you like to 'un-identify' the server"
                               " and shutdown? [y/N]")
             if 'y' in clean:
@@ -391,4 +414,3 @@ if __name__ == "__main__":
             show_usage()
     else:
         show_usage()
-    print("Script exiting..")
