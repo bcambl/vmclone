@@ -1,32 +1,14 @@
 #!/usr/bin/env python
-__description__ = """
-This script assists with cloning Linux Virtual Machines.
+"""
+vmclone.py
+----------
+Re-Identify a cloned Linux Virtual Machine (Hostname & Networking)
 
-Assumptions:
------------
-- Linux distribution is CentOS/RHEL 5/6 (script may require tweaks for others)
-- The virtual machine is configured with two interfaces (Primary & Backup)
-- Default gateway on your network is the first available ip in the range
-
-The following files will be modified:
-
-- /etc/hosts - PRIMARY IP, BACKUP IP, HOSTNAME, DOMAIN
-- /etc/sysconfig/network - HOSTNAME
-- /etc/sysconfig/network-scripts/ifcfg-eth0 - IP, NETMASK, GATEWAY, MAC, UUID
-- /etc/sysconfig/network-scripts/ifcfg-eth1 - IP, NETMASK, GATEWAY, MAC, UUID
-
-Un-Identify Host for Cloning
-----------------------------
-You will be prompted whether you would like to un-identify the server and
-shutdown. This will remove the following files:
-- /etc/udev/rules.d/70-persistent-net.rules
-- /etc/ssh/ssh_host_*
-This will allow the system to re-generate the files upon next (re)boot.
-
+See README.md for usage and more information
 """
 __author__ = 'Blayne Campbell'
 __date__ = '2014-01-29'
-__version__ = '1.0.5'
+__version__ = '1.0.6'
 
 from netaddr import IPNetwork
 from time import sleep
@@ -57,7 +39,7 @@ def show_usage():
 
 def curhost(lookup):
     """
-    Find Current Hostname of system via /etc/sysconfig/network
+    Find current hostname of system via /etc/sysconfig/network
     """
     cur = open(network)
     cur = cur.readlines()
@@ -120,6 +102,11 @@ def genuuid(cfgfile):
 
 
 def get_nameservers(write=None):
+    """
+    Display responsive nameservers outlined in the settings file
+    :param write: Writes nameservers to resolv.conf
+    :return: Nameservers found as reachable
+    """
     print("\nChecking for available Name Servers..\n"
           "The following servers are reachable:\n")
     if write:
@@ -145,6 +132,10 @@ def get_nameservers(write=None):
 
 
 def get_ntpservers():
+    """
+    Display responsive NTP servers outlined in the settings file
+    :return: NTP servers found as reachable
+    """
     print("\nChecking for available NTP Servers..\n"
           "The following servers are reachable:\n")
     for ntp in ntpservers:
@@ -174,6 +165,9 @@ def clean_shutdown():
 
 
 class ServerClone:
+    """
+    Main Configuration Object
+    """
     def __init__(self):
         self.old_serv = curhost('HOSTNAME')
         self.new_serv = None
@@ -200,10 +194,19 @@ class ServerClone:
         self.ntppos = None
 
     def set_hostname(self):
+        """
+        Prompt for new hostname
+        :return: Set object hostname
+        """
         while not self.new_serv:
             self.new_serv = raw_input('Enter NEW Server Name: ')
 
     def set_ntpservers(self):
+        """
+        Tests NTP servers outlined in settings and writes accessible servers
+        to /etc/ntp.conf
+        :return:
+        """
         print("\nChecking for available NTP Servers..\n"
               "The following servers are reachable:\n")
         with open(ntpconf, 'r') as f:
@@ -238,6 +241,10 @@ class ServerClone:
         print("The above servers have been written to %s" % ntpconf)
 
     def show_settings(self):
+        """
+        Show proposed object configuration
+        :return:
+        """
         os.system('clear')
         print("Proposed Network Configuration\n"
               "------------------------------\n\n"
@@ -252,6 +259,10 @@ class ServerClone:
                  self.bkip, self.bknm, self.bkgw))
 
     def confirm_settings(self):
+        """
+        Prompts to confirm settings before writing configuration files
+        :return:
+        """
         applyconf = raw_input("Would you like apply the above "
                               "configuration?[y/N]")
         if 'y' in applyconf:
@@ -263,6 +274,10 @@ class ServerClone:
             sys.exit()
 
     def commit_settings(self):
+        """
+        Write configuration files
+        :return:
+        """
         try:
             # Primary interface ifcfg
             replace(p_ifcfg, self.oldip, self.new_prip)
