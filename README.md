@@ -12,6 +12,10 @@ This script assists with cloning Linux Virtual Machines.
 
 /etc/sysconfig/network-scripts/ifcfg-eth1 - IP, NETMASK, GATEWAY, MAC, UUID
 
+/etc/ntp.conf - NTP SERVERS (ntp servers specified in settings)
+
+/ect/resolv.conf - NAMESERVERS (nameservers specified in settings)
+
 
 #### Un-Identify Host for Cloning
 
@@ -26,6 +30,20 @@ This will allow the system to re-generate the files upon next (re)boot.
 
 ##### Usage Notes
 
-*The script requires root to execute.*
+```
+# sudo ./vmclone.py <check|clone>
+```
 
-*Comment out the 'development' variables and uncomment the 'production' variables*
+**Available parameters:**
+
+*check* - Tests Nameservers and NTP servers outlined in settings (no files written)
+
+*clone* - Prompts for new Hostname and IP information, Checks available nameservers
+and ntp servers, writes configuration files, and prompts for un-identify/shutdown.
+
+
+
+*The script requires root or sudo to execute.*
+
+*Comment out the 'development' variables and uncomment the 'production' variables 
+in the settings.py file*
