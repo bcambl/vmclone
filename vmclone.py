@@ -50,6 +50,7 @@ valmac = '\\b([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})\\b'
 valuuid = '\\b([0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]' \
           '{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12})\\b'
 tabs = '\\b(\\t+)\\b'
+yesno = '\\b^[yes|no]*$\\b'
 #### Validations End #
 
 
@@ -107,7 +108,7 @@ def replace(cfgfile, pattern, subst):
             fileout.write(filecont)
     else:
         with open(cfgfile, 'a') as fileout:
-            fileout.write(subst)
+            fileout.write('\n' + subst)
 
 
 def genuuid(cfgfile):
@@ -132,8 +133,8 @@ def mac_repair():
     """
     replace(p_ifcfg, 'HWADDR=%s' % valmac, 'HWADDR=%s' % findmac('eth0'))
     replace(b_ifcfg, 'HWADDR=%s' % valmac, 'HWADDR=%s' % findmac('eth1'))
-    replace(p_ifcfg, 'ONBOOT=no', 'ONBOOT=yes')
-    replace(b_ifcfg, 'ONBOOT=no', 'ONBOOT=yes')
+    replace(p_ifcfg, 'ONBOOT=%s' % yesno, 'ONBOOT=yes')
+    replace(b_ifcfg, 'ONBOOT=%s' % yesno, 'ONBOOT=yes')
     # Restart the network service
     subprocess.Popen(['service', 'network', 'restart'])
     print("Wait 15 seconds while we restart the network service...")
