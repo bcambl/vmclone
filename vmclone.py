@@ -18,16 +18,8 @@ import os
 import re
 
 
-#### Dependency check for non-standard modules and required utilities #
+#### Dependency check for required utilities #
 def dependancy_check():
-    try:
-        from netaddr import IPNetwork
-    except ImportError:
-        d = subprocess.Popen(['yum', 'install', 'python-netaddr', '-y'])
-        if d.wait() == 0:
-            from netaddr import IPNetwork
-        else:
-            sys.exit("Problem while installing dependancy: python-netaddr")
     d = subprocess.Popen(['which', 'ntpdate'])
     if d.wait() != 0:
         d = subprocess.Popen(['yum', 'install', 'ntpdate', '-y'])
@@ -452,6 +444,14 @@ def main(preconf):
 
 if __name__ == "__main__":
     mac_repair()
+    try:
+        from netaddr import IPNetwork
+    except ImportError:
+        netmod = subprocess.Popen(['yum', 'install', 'python-netaddr', '-y'])
+        if netmod.wait() == 0:
+            from netaddr import IPNetwork
+        else:
+            sys.exit("Problem while installing dependancy: python-netaddr")
     dependancy_check()
     os.system("clear")
     if not os.geteuid() == 0:
