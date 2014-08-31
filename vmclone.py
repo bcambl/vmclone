@@ -138,6 +138,8 @@ def mac_repair():
     """
     replace(p_ifcfg, 'HWADDR=%s' % valmac, 'HWADDR=%s' % findmac('eth0'))
     replace(b_ifcfg, 'HWADDR=%s' % valmac, 'HWADDR=%s' % findmac('eth1'))
+    replace(p_ifcfg, 'ONBOOT=no', 'ONBOOT=yes')
+    replace(b_ifcfg, 'ONBOOT=no', 'ONBOOT=yes')
     # Restart the network service
     subprocess.Popen(['service', 'network', 'restart'])
     print("Wait 15 seconds while we restart the network service...")
