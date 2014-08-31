@@ -17,30 +17,32 @@ import sys
 import os
 import re
 
+
 #### Dependency check for non-standard modules and required utilities #
-try:
-    from netaddr import IPNetwork
-except ImportError:
-    d = subprocess.Popen(['yum', 'install', 'python-netaddr', '-y'])
-    if d.wait() == 0:
+def dependancy_check():
+    try:
         from netaddr import IPNetwork
-    else:
-        sys.exit("Problem while installing dependancy: python-netaddr")
-d = subprocess.Popen(['which', 'ntpdate'])
-if d.wait() != 0:
-    d = subprocess.Popen(['yum', 'install', 'ntpdate', '-y'])
+    except ImportError:
+        d = subprocess.Popen(['yum', 'install', 'python-netaddr', '-y'])
+        if d.wait() == 0:
+            from netaddr import IPNetwork
+        else:
+            sys.exit("Problem while installing dependancy: python-netaddr")
+    d = subprocess.Popen(['which', 'ntpdate'])
     if d.wait() != 0:
-        sys.exit("Problem while installing dependancy: ntpdate")
-d = subprocess.Popen(['which', 'nc'])
-if d.wait() != 0:
-    d = subprocess.Popen(['yum', 'install', 'nc', '-y'])
+        d = subprocess.Popen(['yum', 'install', 'ntpdate', '-y'])
+        if d.wait() != 0:
+            sys.exit("Problem while installing dependancy: ntpdate")
+    d = subprocess.Popen(['which', 'nc'])
     if d.wait() != 0:
-        sys.exit("Problem while installing dependancy: nc")
-d = subprocess.Popen(['which', 'ntpd'])
-if d.wait() != 0:
-    d = subprocess.Popen(['yum', 'install', 'ntp', '-y'])
+        d = subprocess.Popen(['yum', 'install', 'nc', '-y'])
+        if d.wait() != 0:
+            sys.exit("Problem while installing dependancy: nc")
+    d = subprocess.Popen(['which', 'ntpd'])
     if d.wait() != 0:
-        sys.exit("Problem while installing dependancy: ntp")
+        d = subprocess.Popen(['yum', 'install', 'ntp', '-y'])
+        if d.wait() != 0:
+            sys.exit("Problem while installing dependancy: ntp")
 
 #### Import Settings #
 try:
@@ -127,6 +129,19 @@ def genuuid(cfgfile):
             replace(cfgfile, 'UUID=%s' % valuuid, 'UUID=%s' % newuuid)
         else:
             pass
+
+
+def mac_repair():
+    """
+    Replace MAC address with new from re-generated persistent
+    :return:
+    """
+    replace(p_ifcfg, 'HWADDR=%s' % valmac, 'HWADDR=%s' % findmac('eth0'))
+    replace(b_ifcfg, 'HWADDR=%s' % valmac, 'HWADDR=%s' % findmac('eth1'))
+    # Restart the network service
+    subprocess.Popen(['service', 'network', 'restart'])
+    print("Wait 15 seconds while we restart the network service...")
+    sleep(15)
 
 
 def get_nameservers(write=None):
@@ -434,6 +449,8 @@ def main(preconf):
         break
 
 if __name__ == "__main__":
+    mac_repair()
+    dependancy_check()
     os.system("clear")
     if not os.geteuid() == 0:
         sys.exit("\nOnly root can run this script\n")
