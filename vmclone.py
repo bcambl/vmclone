@@ -99,13 +99,15 @@ def replace(cfgfile, pattern, subst):
     """
     Matches a pattern in a file and replaces with provided substitution.
     """
-    filein = open(cfgfile, 'r')
-    filecont = filein.read()
-    filein.close()
-    filecont = (re.sub(pattern, subst, filecont))
-    filein = open(cfgfile, 'w')
-    filein.write(filecont)
-    filein.close()
+    with open(cfgfile, 'r') as filein:
+        filecont = filein.read()
+    if pattern in filecont:
+        filecont = (re.sub(pattern, subst, filecont))
+        with open(cfgfile, 'w') as fileout:
+            fileout.write(filecont)
+    else:
+        with open(cfgfile, 'a') as fileout:
+            fileout.write(subst)
 
 
 def genuuid(cfgfile):
