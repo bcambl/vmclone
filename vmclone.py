@@ -8,9 +8,8 @@ See README.md for usage and more information
 """
 __author__ = 'Blayne Campbell'
 __date__ = '2014-01-29'
-__version__ = '1.0.6'
+__version__ = '1.0.7'
 
-from netaddr import IPNetwork
 from time import sleep
 import subprocess
 import glob
@@ -18,8 +17,37 @@ import sys
 import os
 import re
 
-# Import Settings
-from settings import *
+#### Dependency check for non-standard modules and required utilities #
+try:
+    from netaddr import IPNetwork
+except ImportError:
+    d = subprocess.Popen(['yum', 'install', 'python-netaddr', '-y'])
+    if d.wait() == 0:
+        from netaddr import IPNetwork
+    else:
+        sys.exit("Problem while installing dependancy: python-netaddr")
+d = subprocess.Popen(['which', 'ntpdate'])
+if d.wait() != 0:
+    d = subprocess.Popen(['yum', 'install', 'ntpdate', '-y'])
+    if d.wait() != 0:
+        sys.exit("Problem while installing dependancy: ntpdate")
+d = subprocess.Popen(['which', 'nc'])
+if d.wait() != 0:
+    d = subprocess.Popen(['yum', 'install', 'nc', '-y'])
+    if d.wait() != 0:
+        sys.exit("Problem while installing dependancy: nc")
+d = subprocess.Popen(['which', 'ntpd'])
+if d.wait() != 0:
+    d = subprocess.Popen(['yum', 'install', 'ntp', '-y'])
+    if d.wait() != 0:
+        sys.exit("Problem while installing dependancy: ntp")
+
+#### Import Settings #
+try:
+    from settings import *
+except ImportError:
+    sys.exit("Unable to import settings..\n"
+             "Try re-naming example-settings.py to settings.py")
 
 #### Validations #
 valip = '\\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.)' \
@@ -96,7 +124,7 @@ def genuuid(cfgfile):
         if 'UUID' in i:
             newuuid = subprocess.Popen('uuidgen', stdout=subprocess.PIPE)
             newuuid = newuuid.stdout.readlines()[0].strip()
-            replace(cfgfile, 'UUID="%s"' % valuuid, 'UUID="%s"' % newuuid)
+            replace(cfgfile, 'UUID=%s' % valuuid, 'UUID=%s' % newuuid)
         else:
             pass
 
@@ -120,8 +148,9 @@ def get_nameservers(write=None):
                     f.write(line)
     for ns in nameservers:
         if val(ns):
-            r = subprocess.Popen(['ping', '-c', '1', '-w2', '%s' % ns],
-                                 stdout=subprocess.PIPE)
+            r = subprocess.Popen(['nc', '-v', '-z', '%s' % ns, '53'],
+                                 stdout=subprocess.PIPE,
+                                 stderr=subprocess.STDOUT)
             if r.wait() == 0:
                 print('nameserver %s' % ns)
                 if write:
@@ -171,14 +200,14 @@ class ServerClone:
     def __init__(self):
         self.old_serv = curhost('HOSTNAME')
         self.new_serv = None
-        self.new_prmac = 'HWADDR="%s"' % findmac('eth0')
-        self.new_bkmac = 'HWADDR="%s"' % findmac('eth1')
-        self.oldip = 'IPADDR="%s"' % valip
-        self.oldnm = 'NETMASK="%s"' % valip
-        self.oldgw = 'GATEWAY="%s"' % valip
-        self.oldmac = 'HWADDR="%s"' % valmac
-        self.proto_dhcp = 'BOOTPROTO="dhcp"'
-        self.proto_stat = 'BOOTPROTO="none"'
+        self.new_prmac = 'HWADDR=%s' % findmac('eth0')
+        self.new_bkmac = 'HWADDR=%s' % findmac('eth1')
+        self.oldip = 'IPADDR=%s' % valip
+        self.oldnm = 'NETMASK=%s' % valip
+        self.oldgw = 'GATEWAY=%s' % valip
+        self.oldmac = 'HWADDR=%s' % valmac
+        self.proto_dhcp = 'BOOTPROTO=dhcp'
+        self.proto_stat = 'BOOTPROTO=none'
         self.prip = None
         self.bkip = None
         self.prnm = None
@@ -207,6 +236,8 @@ class ServerClone:
         to /etc/ntp.conf
         :return:
         """
+        if not os.path.exists(ntpconf):
+            sys.exit("Unable to open %s" % ntpconf)
         print("\nChecking for available NTP Servers..\n"
               "The following servers are reachable:\n")
         with open(ntpconf, 'r') as f:
@@ -314,7 +345,6 @@ class ServerClone:
 
 
 def main(preconf):
-    clone = ServerClone()
     clone.set_hostname()
     while True:
         while True:
@@ -322,24 +352,24 @@ def main(preconf):
                 clone.prip = raw_input('Primary IP Address[%s]: '
                                        % vmconf.prip) or vmconf.prip
                 if val(clone.prip):
-                    clone.new_prip = 'IPADDR="%s"' % clone.prip
+                    clone.new_prip = 'IPADDR=%s' % clone.prip
                     break
             else:
                 clone.prip = raw_input('Primary IP Address: ')
                 if val(clone.prip):
-                    clone.new_prip = 'IPADDR="%s"' % clone.prip
+                    clone.new_prip = 'IPADDR=%s' % clone.prip
                     break
         while True:
             if preconf == 1:
                 clone.prnm = raw_input('Primary Netmask[%s]: '
                                        % vmconf.prnm) or vmconf.prnm
                 if val(clone.prnm):
-                    clone.new_prnm = 'NETMASK="%s"' % clone.prnm
+                    clone.new_prnm = 'NETMASK=%s' % clone.prnm
                     break
             else:
                 clone.prnm = raw_input('Primary Netmask: ')
                 if val(clone.prnm):
-                    clone.new_prnm = 'NETMASK="%s"' % clone.prnm
+                    clone.new_prnm = 'NETMASK=%s' % clone.prnm
                     break
         # Calculate Gateway based on IP & Netmask
         prcidr = sum([bin(int(x)).count('1') for x in clone.prnm.split('.')])
@@ -348,31 +378,31 @@ def main(preconf):
             clone.prgw = raw_input('Primary Gateway IP[%s]: '
                                    % clone.prgw) or clone.prgw
             if val(clone.prgw):
-                clone.new_prgw = 'GATEWAY="%s"' % clone.prgw
+                clone.new_prgw = 'GATEWAY=%s' % clone.prgw
                 break
         while True:
             if preconf == 1:
                 clone.bkip = raw_input('Backup IP Address[%s]: '
                                        % vmconf.bkip) or vmconf.bkip
                 if val(clone.bkip):
-                    clone.new_bkip = 'IPADDR="%s"' % clone.bkip
+                    clone.new_bkip = 'IPADDR=%s' % clone.bkip
                     break
             else:
                 clone.bkip = raw_input('Backup IP Address: ')
                 if val(clone.bkip):
-                    clone.new_bkip = 'IPADDR="%s"' % clone.bkip
+                    clone.new_bkip = 'IPADDR=%s' % clone.bkip
                     break
         while True:
             if preconf == 1:
                 clone.bknm = raw_input('Backup Netmask[%s]: '
                                        % vmconf.bknm) or vmconf.bknm
                 if val(clone.bknm):
-                    clone.new_bknm = 'NETMASK="%s"' % clone.bknm
+                    clone.new_bknm = 'NETMASK=%s' % clone.bknm
                     break
             else:
                 clone.bknm = raw_input('Backup Netmask: ')
                 if val(clone.bknm):
-                    clone.new_bknm = 'NETMASK="%s"' % clone.bknm
+                    clone.new_bknm = 'NETMASK=%s' % clone.bknm
                     break
         # Calculate Gateway based on IP & Netmask
         bkcidr = sum([bin(int(x)).count('1') for x in clone.bknm.split('.')])
@@ -381,7 +411,7 @@ def main(preconf):
             clone.bkgw = raw_input('Backup Gateway IP[%s]: '
                                    % clone.bkgw) or clone.bkgw
             if val(clone.bkgw):
-                clone.new_bkgw = 'GATEWAY="%s"' % clone.bkgw
+                clone.new_bkgw = 'GATEWAY=%s' % clone.bkgw
                 break
         print("\n" * 2 + "Saving configuration (see vmconf.py)")
         with open('vmconf.py', 'w') as f:
@@ -412,6 +442,7 @@ if __name__ == "__main__":
             get_nameservers()
             get_ntpservers()
         elif sys.argv[1] == 'clone':
+            clone = ServerClone()
             try:
                 with open('vmconf.py'):
                     print("Previous Configuration Detected. Loading...\n")
