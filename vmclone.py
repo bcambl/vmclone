@@ -136,7 +136,7 @@ def mac_repair():
     replace(p_ifcfg, 'ONBOOT=%s' % yesno, 'ONBOOT=yes')
     replace(b_ifcfg, 'ONBOOT=%s' % yesno, 'ONBOOT=yes')
     # Restart the network service
-    #subprocess.Popen(['service', 'network', 'restart'])
+    subprocess.Popen(['service', 'network', 'restart'])
     print("Wait 15 seconds while we restart the network service...")
     sleep(15)
 
