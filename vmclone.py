@@ -270,18 +270,32 @@ class ServerClone:
             if r.wait() == 0:
                 accessible.append(ntp)
                 print('server %s' % ntp)
-        with open(ntpconf, 'r') as f:
-            lines = f.readlines()
-        for i, a in enumerate(accessible):
-            if i == 0:
-                newline = '\nserver %s\n' % a
-                lines.insert(self.ntppos[0], newline)
+        if accessible:
+            if self.ntppos:
+                with open(ntpconf, 'r') as f:
+                    lines = f.readlines()
+                for i, a in enumerate(accessible):
+                    if i == 0:
+                        newline = '\nserver %s\n' % a
+                        lines.insert(self.ntppos[0], newline)
+                    else:
+                        newline = '\nserver %s' % a
+                        lines.insert(self.ntppos[0], newline)
+                with open(ntpconf, 'w') as out:
+                    out.writelines(lines)
             else:
-                newline = '\nserver %s' % a
-                lines.insert(self.ntppos[0], newline)
-        with open(ntpconf, 'w') as out:
-            out.writelines(lines)
-        print("The above servers have been written to %s" % ntpconf)
+                with open(ntpconf, 'a') as out:
+                    for i, a in enumerate(accessible):
+                        if i == 0:
+                            newline = '\nserver %s\n' % a
+                            out.write(newline)
+                        else:
+                            newline = '\nserver %s' % a
+                            out.write(newline)
+            print("The above servers have been written to %s" % ntpconf)
+        else:
+            print("Warning:\n"
+                  "All servers specified by settings are inaccessible.")
 
     def show_settings(self):
         """
