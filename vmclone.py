@@ -135,10 +135,8 @@ def mac_repair():
     replace(b_ifcfg, 'HWADDR=%s' % valmac, 'HWADDR=%s' % findmac('eth1'))
     replace(p_ifcfg, 'ONBOOT=%s' % yesno, 'ONBOOT=yes')
     replace(b_ifcfg, 'ONBOOT=%s' % yesno, 'ONBOOT=yes')
-    # Restart the network service
-    subprocess.Popen(['service', 'network', 'restart'])
-    print("Wait 15 seconds while we restart the network service...")
-    sleep(15)
+    print("Restarting the network service...")
+    subprocess.call(['service', 'network', 'restart'])
 
 
 def get_nameservers(write=None):
@@ -286,12 +284,8 @@ class ServerClone:
             else:
                 with open(ntpconf, 'a') as out:
                     for i, a in enumerate(accessible):
-                        if i == 0:
-                            newline = '\nserver %s\n' % a
-                            out.write(newline)
-                        else:
-                            newline = '\nserver %s' % a
-                            out.write(newline)
+                        newline = '\nserver %s' % a
+                        out.write(newline)
             print("The above servers have been written to %s" % ntpconf)
         else:
             print("Warning:\n"
@@ -362,10 +356,8 @@ class ServerClone:
             # hostfile replacements
             replace(hosts, prhpat, prhost)
             replace(hosts, bkhpat, bkhost)
-            # Restart the network service
-            subprocess.Popen(['service', 'network', 'restart'])
-            print("Wait 15 seconds while we restart the network service...")
-            sleep(15)
+            print("Restarting the network service...")
+            subprocess.call(['service', 'network', 'restart'])
         except Exception as e:
             sys.exit(e)
 
