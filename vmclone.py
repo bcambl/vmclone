@@ -48,6 +48,7 @@ valip = '\\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.)' \
 valmac = '\\b([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})\\b'
 valuuid = '\\b([0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]' \
           '{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12})\\b'
+valproto = '\\b((?i)dhcp|(?i)none)\\b'
 tabs = '\\b(\\t+)\\b'
 yesno = '\\b((?i)yes|(?i)no)\\b'
 #### Validations End #
@@ -210,6 +211,9 @@ def clean_shutdown():
     for sshfile in glob.glob('/etc/ssh/ssh_host_*'):
         print("deleting %s" % sshfile)
         os.remove(sshfile)
+    for ifcfg in glob.glob('/etc/sysconfig/network-scripts/ifcfg-eth*'):
+        print("Creating backup of: %s" % ifcfg)
+        os.rename(ifcfg, ifcfg + ".bak")
     command = "/sbin/shutdown -h +1"
     process = subprocess.Popen(command.split(), stdout=subprocess.PIPE)
     output = process.communicate()[0]
@@ -229,7 +233,7 @@ class ServerClone:
         self.oldnm = 'NETMASK=%s' % valip
         self.oldgw = 'GATEWAY=%s' % valip
         self.oldmac = 'HWADDR=%s' % valmac
-        self.proto_dhcp = 'BOOTPROTO=dhcp'
+        self.proto_dhcp = 'BOOTPROTO=%s' % valproto
         self.proto_stat = 'BOOTPROTO=none'
         self.prip = None
         self.bkip = None
