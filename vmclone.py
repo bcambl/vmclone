@@ -8,9 +8,8 @@ See README.md for usage and more information
 """
 __author__ = 'Blayne Campbell'
 __date__ = '2014-01-29'
-__version__ = '1.0.7'
+__version__ = '1.0.8'
 
-from time import sleep
 import subprocess
 import glob
 import sys
@@ -72,6 +71,19 @@ def curhost(lookup):
             return host
 
 
+def curmac(cfgfile):
+    """
+    Find current MAC address in given interface configuration
+    :param cfgfile: interface configuration
+    :return: Current MAC address
+    """
+    cur = open(cfgfile)
+    cur = cur.readlines()
+    for i in cur:
+        if 'HWADDR' in i:
+            return i.strip()[7:]
+
+
 def findmac(iface):
     """
     Find MAC address of interface via /etc/udev/rules.d/70-persistent-net.rules
@@ -126,17 +138,18 @@ def genuuid(cfgfile):
             pass
 
 
-def mac_repair():
+def mac_repair(cfgfile, iface):
     """
     Replace MAC address with new from re-generated persistent
     :return:
     """
-    replace(p_ifcfg, 'HWADDR=%s' % valmac, 'HWADDR=%s' % findmac('eth0'))
-    replace(b_ifcfg, 'HWADDR=%s' % valmac, 'HWADDR=%s' % findmac('eth1'))
-    replace(p_ifcfg, 'ONBOOT=%s' % yesno, 'ONBOOT=yes')
-    replace(b_ifcfg, 'ONBOOT=%s' % yesno, 'ONBOOT=yes')
-    print("Restarting the network service...")
-    subprocess.call(['service', 'network', 'restart'])
+    if curmac(cfgfile) != findmac(iface):
+        replace(cfgfile, 'HWADDR=%s' % valmac, 'HWADDR=%s' % findmac(iface))
+        print("MAC Address for %s has been repaired. "
+              "Restarting networking.." % iface)
+        subprocess.call(['service', 'network', 'restart'])
+    # Ensure the interface is enabld on boot:
+    replace(cfgfile, 'ONBOOT=%s' % yesno, 'ONBOOT=yes')
 
 
 def get_nameservers(write=None):
@@ -452,7 +465,8 @@ def main(preconf):
         break
 
 if __name__ == "__main__":
-    mac_repair()
+    mac_repair(p_ifcfg, 'eth0')
+    mac_repair(b_ifcfg, 'eth1')
     try:
         from netaddr import IPNetwork
     except ImportError:
