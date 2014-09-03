@@ -17,24 +17,18 @@ import sys
 import os
 import re
 
+#### List of applications required by script #
+dependancies = ['nc', 'ntp', 'ntpdate']
+
 
 #### Dependency check for required utilities #
 def dependancy_check():
-    d = subprocess.Popen(['which', 'ntpdate'])
-    if d.wait() != 0:
-        d = subprocess.Popen(['yum', 'install', 'ntpdate', '-y'])
+    for dep in dependancies:
+        d = subprocess.Popen(['which', '%s' % dep])
         if d.wait() != 0:
-            sys.exit("Problem while installing dependancy: ntpdate")
-    d = subprocess.Popen(['which', 'nc'])
-    if d.wait() != 0:
-        d = subprocess.Popen(['yum', 'install', 'nc', '-y'])
-        if d.wait() != 0:
-            sys.exit("Problem while installing dependancy: nc")
-    d = subprocess.Popen(['which', 'ntpd'])
-    if d.wait() != 0:
-        d = subprocess.Popen(['yum', 'install', 'ntp', '-y'])
-        if d.wait() != 0:
-            sys.exit("Problem while installing dependancy: ntp")
+            d = subprocess.Popen(['yum', 'install', '%s' % dep, '-y'])
+            if d.wait() != 0:
+                sys.exit("Problem while installing dependancy: %s" % dep)
 
 #### Import Settings #
 try:
@@ -51,8 +45,8 @@ valmac = '\\b([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})\\b'
 valuuid = '\\b([0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]' \
           '{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12})\\b'
 valproto = '\\b((?i)dhcp|(?i)none)\\b'
-tabs = '\\b(\\t+)\\b'
-yesno = '\\b((?i)yes|(?i)no)\\b'
+valtabs = '\\b(\\t+)\\b'
+valyesno = '\\b((?i)yes|(?i)no)\\b'
 #### Validations End #
 
 
@@ -174,7 +168,7 @@ def mac_repair(cfgfile, iface):
               "Restarting networking.." % iface)
         subprocess.call(['service', 'network', 'restart'])
     # Ensure the interface is enabld on boot:
-    replace(cfgfile, 'ONBOOT=%s' % yesno, 'ONBOOT=yes')
+    replace(cfgfile, 'ONBOOT=%s' % valyesno, 'ONBOOT=yes')
 
 
 def get_nameservers(write=None):
@@ -388,9 +382,9 @@ class ServerClone:
             # network file
             replace(network, self.old_serv, self.new_serv)
             # Hosts strings
-            prhpat = '%s%s%s %s.%s\n' % (valip, tabs, self.old_serv,
+            prhpat = '%s%s%s %s.%s\n' % (valip, valtabs, self.old_serv,
                                          self.old_serv, domain)
-            bkhpat = '%s%s%s-bkp\n' % (valip, tabs, self.old_serv)
+            bkhpat = '%s%s%s-bkp\n' % (valip, valtabs, self.old_serv)
             prhost = '%s\t\t%s %s.%s\n' % (self.prip, self.new_serv,
                                            self.new_serv, domain)
             bkhost = '%s\t\t%s-bkp\n' % (self.bkip, self.new_serv)
