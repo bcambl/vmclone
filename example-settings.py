@@ -22,7 +22,7 @@ resolvconf = 'test_files/resolv-sample'  # resolve.conf
 #### Production End #
 
 #### List of possible nameservers #
-nameservers = ['4.4.4.4',  # google
+nameservers = ['8.8.4.4',  # google
                '8.8.8.8',  # google
                '208.67.222.222',  # opendns
                '208.67.220.220']  # opendns
