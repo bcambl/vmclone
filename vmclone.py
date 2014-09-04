@@ -12,23 +12,14 @@ __version__ = '1.1.0'
 
 import subprocess
 import datetime
+import shutil
 import glob
 import sys
 import os
 import re
 
 #### List of applications required by script #
-dependancies = ['nc', 'ntp', 'ntpdate']
-
-
-#### Dependency check for required utilities #
-def dependancy_check():
-    for dep in dependancies:
-        d = subprocess.Popen(['which', '%s' % dep])
-        if d.wait() != 0:
-            d = subprocess.Popen(['yum', 'install', '%s' % dep, '-y'])
-            if d.wait() != 0:
-                sys.exit("Problem while installing dependancy: %s" % dep)
+dependencies = ['nc', 'ntp', 'ntpdate']
 
 #### Import Settings #
 try:
@@ -50,7 +41,39 @@ valyesno = '\\b((?i)yes|(?i)no)\\b'
 #### Validations End #
 
 
+def dependency_check():
+    """
+    Dependency check for required utilities
+    """
+    for dep in dependencies:
+        d = subprocess.Popen(['which', '%s' % dep])
+        if d.wait() != 0:
+            d = subprocess.Popen(['yum', 'install', '%s' % dep, '-y'])
+            if d.wait() != 0:
+                sys.exit("Problem while installing dependancy: %s" % dep)
+
+
+def backup_file(cfgfile):
+    """
+    Creates Backup of configuration file
+    :param cfgfile: configuration file
+    :return: creates backup if backup not already exists
+    """
+    backup_dir = os.path.dirname(os.path.realpath(__file__)) + '/cfg_backups/'
+    if not os.path.exists(backup_dir):
+        pass
+        os.mkdir(backup_dir)
+    p, f = os.path.split(cfgfile)
+    if os.path.isfile("%s%s" % (backup_dir, f)):
+        pass
+    else:
+        shutil.copy(cfgfile, backup_dir)
+
+
 def show_usage():
+    """
+    Show script usage
+    """
     print("\nUsage:\nclone: Re-identify this server (write networking files)")
     print("check: Show available Name servers and NTP servers\n")
     sys.exit('Try: %s <check|clone>\n' % sys.argv[0])
@@ -109,6 +132,7 @@ def replace(cfgfile, pattern, subst):
     """
     Matches a pattern in a file and replaces with provided substitution.
     """
+    backup_file(cfgfile)
     with open(cfgfile, 'r') as filein:
         filecont = filein.read()
     if re.search(pattern, filecont):
@@ -497,7 +521,7 @@ if __name__ == "__main__":
             from netaddr import IPNetwork
         else:
             sys.exit("Problem while installing dependancy: python-netaddr")
-    dependancy_check()
+    dependency_check()
     os.system("clear")
     if not os.geteuid() == 0:
         sys.exit("\nOnly root can run this script\n")
