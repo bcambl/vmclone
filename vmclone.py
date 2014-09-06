@@ -70,6 +70,20 @@ def backup_file(cfgfile):
         shutil.copy(cfgfile, backup_dir)
 
 
+def get_interfaces():
+    """
+    Find all available interfaces (exclude loopback interface)
+    :return: List of interface names
+    """
+    ifs = subprocess.Popen(["netstat", "-i"], stdout=subprocess.PIPE)
+    ifs = ifs.stdout.readlines()
+    iflist = []
+    for i in ifs[2:]:
+        if i.split()[0] != "lo":
+            iflist.append(i.split()[0])
+    return iflist
+
+
 def show_usage():
     """
     Show script usage
