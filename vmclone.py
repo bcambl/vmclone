@@ -8,7 +8,7 @@ See README.md for usage and more information
 """
 __author__ = 'Blayne Campbell'
 __date__ = '2014-01-29'
-__version__ = '1.1.0'
+__version__ = '1.2.0'
 
 import subprocess
 import datetime
@@ -18,10 +18,21 @@ import sys
 import os
 import re
 
-#### List of applications required by script #
-dependencies = ['nc', 'ntp', 'ntpdate']
+# Set Working Directory
+abspath = os.path.abspath(__file__)
+script_path = os.path.dirname(abspath)
+os.chdir(script_path)
+try:
+    from subprocess import DEVNULL  # py3k
+except ImportError:
+    DEVNULL = open(os.devnull, 'wb')
 
-#### Import Settings #
+# List of applications required by script #
+dependencies = ['nc', 'ntp', 'ntpdate']
+# Minimal Mode - Skip all dependency checks
+minimal_mode = 0
+
+# Import Settings #
 try:
     from settings import *
 except ImportError:
@@ -29,7 +40,7 @@ except ImportError:
              "Try re-naming example-settings.py to settings.py")
 
 
-#### Validations #
+# Validations #
 valip = '\\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.)' \
         '{3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\b'
 valmac = '\\b([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})\\b'
@@ -38,7 +49,7 @@ valuuid = '\\b([0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]' \
 valproto = '\\b((?i)dhcp|(?i)none)\\b'
 valtabs = '\\b(\\t+)\\b'
 valyesno = '\\b((?i)yes|(?i)no)\\b'
-#### Validations End #
+# Validations End #
 
 
 def dependency_check():
@@ -59,7 +70,7 @@ def backup_file(cfgfile):
     :param cfgfile: configuration file
     :return: creates backup if backup not already exists
     """
-    backup_dir = os.path.dirname(os.path.realpath(__file__)) + '/cfg_backups/'
+    backup_dir = script_path + '/cfg_backups/'
     if not os.path.exists(backup_dir):
         pass
         os.mkdir(backup_dir)
@@ -202,9 +213,7 @@ def mac_repair(cfgfile, iface):
         gen_interface(cfgfile, iface)
     if curmac(cfgfile) != findmac(iface):
         replace(cfgfile, 'HWADDR=%s' % valmac, 'HWADDR=%s' % findmac(iface))
-        print("MAC Address for %s has been repaired. "
-              "Restarting networking.." % iface)
-        subprocess.call(['service', 'network', 'restart'])
+        print("MAC Address for %s has been repaired." % iface)
     # Ensure the interface is enabld on boot:
     replace(cfgfile, 'ONBOOT=%s' % valyesno, 'ONBOOT=yes')
 
@@ -270,17 +279,16 @@ def clean_shutdown():
     for ifcfg in glob.glob('/etc/sysconfig/network-scripts/ifcfg-eth*'):
         print("deleting %s" % ifcfg)
         os.remove(ifcfg)
-    command = "/sbin/shutdown -h +1"
-    process = subprocess.Popen(command.split(), stdout=subprocess.PIPE)
-    output = process.communicate()[0]
-    print(output)
+    command = "/sbin/shutdown -h now"
+    subprocess.Popen(command.split())
 
 
 class ServerClone:
     """
     Main Configuration Object
     """
-    def __init__(self):
+    def __init__(self, mode=0):
+        self.runmode = mode
         self.old_serv = curhost('HOSTNAME')
         self.new_serv = None
         self.new_prmac = 'HWADDR=%s' % findmac('eth0')
@@ -430,6 +438,7 @@ class ServerClone:
             replace(hosts, prhpat, prhost)
             replace(hosts, bkhpat, bkhost)
             print("Restarting the network service...")
+            subprocess.call('start_udev')
             subprocess.call(['service', 'network', 'restart'])
         except Exception as e:
             sys.exit(e)
@@ -464,13 +473,27 @@ def main(preconf):
                     break
         # Calculate Gateway based on IP & Netmask
         prcidr = sum([bin(int(x)).count('1') for x in clone.prnm.split('.')])
-        clone.prgw = IPNetwork('%s/%s' % (clone.prip, prcidr))[1].format()
-        while True:
-            clone.prgw = raw_input('Primary Gateway IP[%s]: '
-                                   % clone.prgw) or clone.prgw
-            if val(clone.prgw):
-                clone.new_prgw = 'GATEWAY=%s' % clone.prgw
-                break
+        if clone.runmode == 0:
+            clone.prgw = IPNetwork('%s/%s' % (clone.prip, prcidr))[1].format()
+            while True:
+                clone.prgw = raw_input('Primary Gateway IP[%s]: '
+                                       % clone.prgw) or clone.prgw
+                if val(clone.prgw):
+                    clone.new_prgw = 'GATEWAY=%s' % clone.prgw
+                    break
+        else:
+            while True:
+                if preconf == 1:
+                    clone.prgw = raw_input('Primary Gateway IP[%s]: '
+                                           % vmconf.prgw) or vmconf.prgw
+                    if val(clone.prgw):
+                        clone.new_prgw = 'GATEWAY=%s' % clone.prgw
+                        break
+                else:
+                    clone.prgw = raw_input('Primary Gateway IP: ')
+                    if val(clone.prgw):
+                        clone.new_prgw = 'GATEWAY=%s' % clone.prgw
+                        break
         while True:
             if preconf == 1:
                 clone.bkip = raw_input('Backup IP Address[%s]: '
@@ -497,15 +520,29 @@ def main(preconf):
                     break
         # Calculate Gateway based on IP & Netmask
         bkcidr = sum([bin(int(x)).count('1') for x in clone.bknm.split('.')])
-        clone.bkgw = IPNetwork('%s/%s' % (clone.bkip, bkcidr))[1].format()
-        while True:
-            clone.bkgw = raw_input('Backup Gateway IP[%s]: '
-                                   % clone.bkgw) or clone.bkgw
-            if val(clone.bkgw):
-                clone.new_bkgw = 'GATEWAY=%s' % clone.bkgw
-                break
+        if clone.runmode == 0:
+            clone.bkgw = IPNetwork('%s/%s' % (clone.bkip, bkcidr))[1].format()
+            while True:
+                clone.bkgw = raw_input('Backup Gateway IP[%s]: '
+                                       % clone.bkgw) or clone.bkgw
+                if val(clone.bkgw):
+                    clone.new_bkgw = 'GATEWAY=%s' % clone.bkgw
+                    break
+        else:
+            while True:
+                if preconf == 1:
+                    clone.bkgw = raw_input('Backup Gateway IP[%s]: '
+                                           % vmconf.bkgw) or vmconf.bkgw
+                    if val(clone.bkgw):
+                        clone.new_bkgw = 'GATEWAY=%s' % clone.bkgw
+                        break
+                else:
+                    clone.bkgw = raw_input('Backup Gateway IP: ')
+                    if val(clone.bkgw):
+                        clone.new_bkgw = 'GATEWAY=%s' % clone.bkgw
+                        break
         print("\n" * 2 + "Saving configuration (see vmconf.py)")
-        with open('vmconf.py', 'w') as f:
+        with open(script_path + '/vmconf.py', 'w') as f:
             f.write('""" Rapid Deployment Server Configuration """' + '\n')
             f.write('\n')
             f.write('# Primary Interface (%s)' % p_ifcfg + '\n')
@@ -520,31 +557,42 @@ def main(preconf):
             f.close()
         clone.show_settings()
         clone.confirm_settings()
-        get_nameservers(write=True)
-        clone.set_ntpservers()
+        if clone.runmode == 0:
+            get_nameservers(write=True)
+            clone.set_ntpservers()
         break
+
 
 if __name__ == "__main__":
     mac_repair(p_ifcfg, 'eth0')
     mac_repair(b_ifcfg, 'eth1')
+    subprocess.call('start_udev')
+    subprocess.call(['service', 'network', 'restart'])
     try:
         from netaddr import IPNetwork
     except ImportError:
-        netmod = subprocess.Popen(['yum', 'install', 'python-netaddr', '-y'])
+        netmod = subprocess.Popen(['yum', 'install', 'python-netaddr', '-y'],
+                                  stdout=DEVNULL, stderr=subprocess.STDOUT)
         if netmod.wait() == 0:
             from netaddr import IPNetwork
         else:
-            sys.exit("Problem while installing dependancy: python-netaddr")
-    dependency_check()
+            minimal_mode = 1
+    if minimal_mode == 0:
+        dependency_check()
     os.system("clear")
     if not os.geteuid() == 0:
         sys.exit("\nOnly root can run this script\n")
     if len(sys.argv) == 2:
         if sys.argv[1] == 'check':
-            get_nameservers()
-            get_ntpservers()
+            if minimal_mode == 0:
+                get_nameservers()
+                get_ntpservers()
+            else:
+                raw_input('Unable to perform \'check\'\nPress the \'any\' key'
+                          'to exit.')
+                sys.exit()
         elif sys.argv[1] == 'clone':
-            clone = ServerClone()
+            clone = ServerClone(minimal_mode)
             try:
                 with open('vmconf.py'):
                     print("Previous Configuration Detected. Loading...\n")
@@ -552,9 +600,14 @@ if __name__ == "__main__":
                     main(1)
             except IOError:
                 main(2)
-            clean = raw_input("Would you like to 'un-identify' the server"
-                              " and shutdown? [y/N]")
-            if 'y' in clean:
+            print('\n\n' + ('=' * 45))
+            print("Would you like to prepare the server for cloning?\n"
+                  "Answering \'yes\' will do the following:\n"
+                  "Remove /etc/ssh/ssh_host_*\n"
+                  "Remove /etc/sysconfig/network-scripts/ifcfg-eth*\n"
+                  "Remove /etc/udev/rules.d/70-persistent-net.rules\n\n")
+            clean = raw_input("Prepare to Clone? [y/N]")
+            if clean.upper() in ['Y', 'YES']:
                 clean_shutdown()
             else:
                 pass
