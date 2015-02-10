@@ -90,16 +90,18 @@ def get_interfaces():
     interface_list = []
     physical_interfaces = {}
     for i in procnetdev:
-        iface = re.match(r'^(.*)?:.*$', i)
+        iface = re.match(r'^(.*):.*$', i)
         if iface:
-            interface_list.append(iface.group(1))
+            interface_found = iface.group(1).strip()
+            if interface_found != 'lo':
+                interface_list.append(interface_found)
     for interface in interface_list:
         perm_addr = subprocess.Popen(['ethtool', '-P', interface],
                                      stdout=subprocess.PIPE,
                                      stderr=DEVNULL).stdout.readlines()
-        if not perm_addr:
+        if not perm_addr or perm_addr[0] == '00:00:00:00:00:00':
             continue
-        mac = re.match(r'^.*address:\s(.*)?\\n\'\]$', str(perm_addr))
+        mac = re.match(r'^Permanent\saddress:\s(.*)$', perm_addr[0])
         if mac:
             physical_interfaces[interface] = {'perm_addr': mac.group(1)}
     return physical_interfaces
