@@ -82,17 +82,27 @@ def backup_file(cfgfile):
 
 
 def get_interfaces():
+    """ Return interface(s) reporting a permanent address via ethtool utility.
+    :return: dict = {'interface': {'perm_addr': '00:00:00:00:00:00'}
     """
-    Find all available interfaces (exclude loopback interface)
-    :return: List of interface names
-    """
-    ifs = subprocess.Popen(["netstat", "-i"], stdout=subprocess.PIPE)
-    ifs = ifs.stdout.readlines()
-    iflist = []
-    for i in ifs[2:]:
-        if i.split()[0] != "lo":
-            iflist.append(i.split()[0])
-    return iflist
+    procnetdev = subprocess.Popen(['cat', '/proc/net/dev'],
+                                  stdout=subprocess.PIPE).stdout.readlines()
+    interface_list = []
+    physical_interfaces = {}
+    for i in procnetdev:
+        iface = re.match(r'^(.*)?:.*$', i)
+        if iface:
+            interface_list.append(iface.group(1))
+    for interface in interface_list:
+        perm_addr = subprocess.Popen(['ethtool', '-P', interface],
+                                     stdout=subprocess.PIPE,
+                                     stderr=DEVNULL).stdout.readlines()
+        if not perm_addr:
+            continue
+        mac = re.match(r'^.*address:\s(.*)?\\n\'\]$', str(perm_addr))
+        if mac:
+            physical_interfaces[interface] = {'perm_addr': mac.group(1)}
+    return physical_interfaces
 
 
 def show_usage():
