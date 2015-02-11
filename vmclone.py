@@ -637,8 +637,9 @@ if __name__ == "__main__":
     else:
         current_interfaces = get_interfaces()
         print("Current detected interfaces:\n")
-        for cinterface in current_interfaces:
-            print(cinterface, ' - ', cinterface['perm_address'])
+        for c_interface in current_interfaces:
+            interface_mac = current_interfaces[c_interface]['perm_address']
+            print("%s - %s" % (c_interface, interface_mac))
         print('\n')
         interface_prompt = raw_input("Are the above interfaces correct?[Y/n]")
         if interface_prompt.lower() == 'y':
