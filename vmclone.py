@@ -27,11 +27,6 @@ try:
 except ImportError:
     DEVNULL = open(os.devnull, 'wb')
 
-# List of applications required by script #
-dependencies = ['nc', 'ntp', 'ntpdate']
-# Minimal Mode - Skip all dependency checks
-minimal_mode = 0
-
 # Import Settings #
 try:
     from settings import *
@@ -51,17 +46,34 @@ valtabs = '\\b(\\t+)\\b'
 valyesno = '\\b((?i)yes|(?i)no)\\b'
 # Validations End #
 
+# Minimal Mode - Skip all dependency checks
+minimal_mode = 0
+
 
 def dependency_check():
     """
     Dependency check for required utilities
     """
-    for dep in dependencies:
-        d = subprocess.Popen(['which', '%s' % dep])
+    # List of applications required by script #
+    all_dependencies = ['nc', 'ntp', 'ntpdate']
+    missing_dependencies = []
+    for dependency in all_dependencies:
+        d = subprocess.Popen(['which', '%s' % dependency], stderr=DEVNULL)
         if d.wait() != 0:
-            d = subprocess.Popen(['yum', 'install', '%s' % dep, '-y'])
-            if d.wait() != 0:
-                sys.exit("Problem while installing dependancy: %s" % dep)
+            missing_dependencies.append(dependency)
+    if len(missing_dependencies) >= 1:
+        print('The following dependencies are not installed: %s'
+              % " ".join(str(x) for x in missing_dependencies))
+        dep_prompt = raw_input("Would you like to install these now?[y/N]")
+        if dep_prompt.lower() == 'y':
+            for dependency in missing_dependencies:
+                d = subprocess.Popen(['yum', 'install', '%s' % dependency])
+                if d.wait() != 0:
+                    sys.exit("Problem while installing dependency: %s"
+                             % dependency)
+        else:
+            sys.exit('You chose not to install dependencies.. Exiting.')
+    return True
 
 
 def backup_file(cfgfile):
@@ -83,7 +95,7 @@ def backup_file(cfgfile):
 
 def get_interfaces():
     """ Return interface(s) reporting a permanent address via ethtool utility.
-    :return: dict = {'interface': {'perm_addr': '00:00:00:00:00:00'}
+    :return: dict = {'interface': {'perm_address': '00:00:00:00:00:00'}
     """
     procnetdev = subprocess.Popen(['cat', '/proc/net/dev'],
                                   stdout=subprocess.PIPE).stdout.readlines()
@@ -103,7 +115,7 @@ def get_interfaces():
             continue
         mac = re.match(r'^Permanent\saddress:\s(.*)$', perm_addr[0])
         if mac:
-            physical_interfaces[interface] = {'perm_addr': mac.group(1)}
+            physical_interfaces[interface] = {'perm_address': mac.group(1)}
     return physical_interfaces
 
 
@@ -276,7 +288,7 @@ def get_ntpservers():
             print('server %s' % ntp)
 
 
-def clean_shutdown():
+def clean_shutdown(option):
     """
     Removes udev net rules and ssh host files that are automatically generated
     on boot.
@@ -291,7 +303,10 @@ def clean_shutdown():
     for ifcfg in glob.glob('/etc/sysconfig/network-scripts/ifcfg-eth*'):
         print("deleting %s" % ifcfg)
         os.remove(ifcfg)
-    command = "/sbin/shutdown -h now"
+    if option == 'halt':
+        command = "/sbin/shutdown -h now"
+    else:
+        command = "/sbin/shutdown -r now"
     subprocess.Popen(command.split())
 
 
@@ -423,6 +438,8 @@ class ServerClone:
         :return:
         """
         try:
+            # mac_repair(p_ifcfg, 'eth0')
+            # mac_repair(b_ifcfg, 'eth1')
             # Primary interface ifcfg
             replace(p_ifcfg, self.oldip, self.new_prip)
             replace(p_ifcfg, self.oldnm, self.new_prnm)
@@ -569,17 +586,10 @@ def main(preconf):
             f.close()
         clone.show_settings()
         clone.confirm_settings()
-        if clone.runmode == 0:
-            get_nameservers(write=True)
-            clone.set_ntpservers()
         break
 
 
 if __name__ == "__main__":
-    mac_repair(p_ifcfg, 'eth0')
-    mac_repair(b_ifcfg, 'eth1')
-    subprocess.call('start_udev')
-    subprocess.call(['service', 'network', 'restart'])
     try:
         from netaddr import IPNetwork
     except ImportError:
@@ -589,16 +599,15 @@ if __name__ == "__main__":
             from netaddr import IPNetwork
         else:
             minimal_mode = 1
-    if minimal_mode == 0:
-        dependency_check()
     os.system("clear")
     if not os.geteuid() == 0:
         sys.exit("\nOnly root can run this script\n")
     if len(sys.argv) == 2:
         if sys.argv[1] == 'check':
             if minimal_mode == 0:
-                get_nameservers()
-                get_ntpservers()
+                if dependency_check():
+                    get_nameservers()
+                    get_ntpservers()
             else:
                 raw_input('Unable to perform \'check\'\nPress the \'any\' key'
                           'to exit.')
@@ -620,10 +629,22 @@ if __name__ == "__main__":
                   "Remove /etc/udev/rules.d/70-persistent-net.rules\n\n")
             clean = raw_input("Prepare to Clone? [y/N]")
             if clean.upper() in ['Y', 'YES']:
-                clean_shutdown()
+                clean_shutdown('halt')
             else:
                 pass
         else:
             show_usage()
     else:
-        show_usage()
+        current_interfaces = get_interfaces()
+        print("Current detected interfaces:\n")
+        for cinterface in current_interfaces:
+            print(cinterface, ' - ', cinterface['perm_address'])
+        print('\n')
+        interface_prompt = raw_input("Are the above interfaces correct?[Y/n]")
+        if interface_prompt.lower() == 'y':
+            show_usage()
+        else:
+            reset_prompt = raw_input("Remove udev rules/ssh_host/ifcfg files "
+                                     "and reboot?[y/N]")
+            if reset_prompt.lower() == 'y':
+                clean_shutdown('reboot')
