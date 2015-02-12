@@ -18,6 +18,8 @@ import sys
 import os
 import re
 
+date = str(datetime.datetime.now().strftime('%Y-%m-%d'))
+
 # Set Working Directory
 abspath = os.path.abspath(__file__)
 script_path = os.path.dirname(abspath)
@@ -76,21 +78,15 @@ def dependency_check():
     return True
 
 
-def backup_file(cfgfile):
-    """
-    Creates Backup of configuration file
-    :param cfgfile: configuration file
-    :return: creates backup if backup not already exists
-    """
-    backup_dir = script_path + '/cfg_backups/'
-    if not os.path.exists(backup_dir):
-        pass
-        os.mkdir(backup_dir)
-    p, f = os.path.split(cfgfile)
-    if os.path.isfile("%s%s" % (backup_dir, f)):
-        pass
+def get_release():
+    release = subprocess.Popen(['cat', '/etc/redhat-release'],
+                               stdout=subprocess.PIPE)
+    release = release.stdout.read()
+    release_number = re.match(r'^.*release\s(\d{1,2}).*$', release)
+    if release_number:
+        return release_number.group(1)
     else:
-        shutil.copy(cfgfile, backup_dir)
+        return False
 
 
 def get_interfaces():
@@ -128,7 +124,7 @@ def show_usage():
     sys.exit('Try: %s <check|clone>\n' % sys.argv[0])
 
 
-def curhost(lookup):
+def current_hostname(lookup):
     """
     Find current hostname of system via /etc/sysconfig/network
     """
@@ -140,7 +136,7 @@ def curhost(lookup):
             return host
 
 
-def curmac(cfgfile):
+def current_mac(cfgfile):
     """
     Find current MAC address in given interface configuration
     :param cfgfile: interface configuration
@@ -153,20 +149,31 @@ def curmac(cfgfile):
             return i.strip()[7:]
 
 
+def backup_file(cfgfile):
+    """
+    Creates Backup of configuration file
+    :param cfgfile: configuration file
+    :return: creates backup if backup not already exists
+    """
+    backup_dir = script_path + '/cfg_backups/%s' % date
+    if not os.path.exists(backup_dir):
+        os.makedirs(backup_dir)
+    p, f = os.path.split(cfgfile)
+    if os.path.isfile("%s%s" % (backup_dir, f)):
+        pass
+    else:
+        shutil.copy(cfgfile, backup_dir)
+
+
 def findmac(iface):
     """
-    Find MAC address of interface via /etc/udev/rules.d/70-persistent-net.rules
+    Return permanent MAC address for interface
     """
-    pnet = open(persistent)
-    pnet = pnet.readlines()
-    for i in pnet:
-        if iface in i:
-            mac = i.index('ATTR{address}==')
-            mac = i[mac + 16:mac + 33]
-            return mac.upper()
+    interfaces = get_interfaces()
+    return interfaces[iface]['perm_address']
 
 
-def val(ip):
+def valid_ip(ip):
     """
     Validate IP Addresses
     """
@@ -181,7 +188,6 @@ def replace(cfgfile, pattern, subst):
     """
     Matches a pattern in a file and replaces with provided substitution.
     """
-    backup_file(cfgfile)
     with open(cfgfile, 'r') as filein:
         filecont = filein.read()
     if re.search(pattern, filecont):
@@ -193,7 +199,7 @@ def replace(cfgfile, pattern, subst):
             fileout.write('\n' + subst)
 
 
-def genuuid(cfgfile):
+def gen_uuid(cfgfile):
     """
     Generate a new random UUID for ifcfg-<interface>
     """
@@ -235,7 +241,7 @@ def mac_repair(cfgfile, iface):
     """
     if not os.path.exists(cfgfile):
         gen_interface(cfgfile, iface)
-    if curmac(cfgfile) != findmac(iface):
+    if current_mac(cfgfile) != findmac(iface):
         replace(cfgfile, 'HWADDR=%s' % valmac, 'HWADDR=%s' % findmac(iface))
         print("MAC Address for %s has been repaired." % iface)
     # Ensure the interface is enabld on boot:
@@ -260,7 +266,7 @@ def get_nameservers(write=None):
                 else:
                     f.write(line)
     for ns in nameservers:
-        if val(ns):
+        if valid_ip(ns):
             r = subprocess.Popen(['nc', '-v', '-z', '%s' % ns, '53'],
                                  stdout=subprocess.PIPE,
                                  stderr=subprocess.STDOUT)
@@ -295,8 +301,9 @@ def clean_shutdown(option):
     This ensures that any new servers cloned from this 'template' will
     have unique MAC addresses and ssh host keys.
     """
-    print("deleting %s" % persistent)
-    os.remove(persistent)
+    if get_release() <= 6:
+        print("deleting %s" % persistent)
+        os.remove(persistent)
     for sshfile in glob.glob('/etc/ssh/ssh_host_*'):
         print("deleting %s" % sshfile)
         os.remove(sshfile)
@@ -316,7 +323,7 @@ class ServerClone:
     """
     def __init__(self, mode=0):
         self.runmode = mode
-        self.old_serv = curhost('HOSTNAME')
+        self.old_serv = current_hostname('HOSTNAME')
         self.new_serv = None
         self.new_prmac = 'HWADDR=%s' % findmac('eth0')
         self.new_bkmac = 'HWADDR=%s' % findmac('eth1')
@@ -438,24 +445,28 @@ class ServerClone:
         :return:
         """
         try:
-            # mac_repair(p_ifcfg, 'eth0')
-            # mac_repair(b_ifcfg, 'eth1')
             # Primary interface ifcfg
+            backup_file(p_ifcfg)
+            gen_interface(p_ifcfg, 'eth0')
             replace(p_ifcfg, self.oldip, self.new_prip)
             replace(p_ifcfg, self.oldnm, self.new_prnm)
             replace(p_ifcfg, self.oldgw, self.new_prgw)
             replace(p_ifcfg, self.oldmac, self.new_prmac)
             replace(p_ifcfg, self.proto_dhcp, self.proto_stat)
-            genuuid(p_ifcfg)
+            gen_uuid(p_ifcfg)
             # Backup interface ifcfg
+            backup_file(b_ifcfg)
+            gen_interface(b_ifcfg, 'eth1')
             replace(b_ifcfg, self.oldip, self.new_bkip)
             replace(b_ifcfg, self.oldnm, self.new_bknm)
             replace(b_ifcfg, self.oldgw, self.new_bkgw)
             replace(b_ifcfg, self.oldmac, self.new_bkmac)
             replace(b_ifcfg, self.proto_dhcp, self.proto_stat)
-            genuuid(b_ifcfg)
+            gen_uuid(b_ifcfg)
             # network file
-            replace(network, self.old_serv, self.new_serv)
+            if self.old_serv:
+                backup_file(network)
+                replace(network, self.old_serv, self.new_serv)
             # Hosts strings
             prhpat = '%s%s%s %s.%s\n' % (valip, valtabs, self.old_serv,
                                          self.old_serv, domain)
@@ -464,11 +475,15 @@ class ServerClone:
                                            self.new_serv, domain)
             bkhost = '%s\t\t%s-bkp\n' % (self.bkip, self.new_serv)
             # hostfile replacements
+            backup_file(hosts)
             replace(hosts, prhpat, prhost)
             replace(hosts, bkhpat, bkhost)
             print("Restarting the network service...")
-            subprocess.call('start_udev')
-            subprocess.call(['service', 'network', 'restart'])
+            if get_release() >= '7':
+                subprocess.call(['systemctl', 'restart', 'network.service'])
+            else:
+                subprocess.call('start_udev')
+                subprocess.call(['service', 'network', 'restart'])
         except Exception as e:
             sys.exit(e)
 
@@ -480,24 +495,24 @@ def main(preconf):
             if preconf == 1:
                 clone.prip = raw_input('Primary IP Address[%s]: '
                                        % vmconf.prip) or vmconf.prip
-                if val(clone.prip):
+                if valid_ip(clone.prip):
                     clone.new_prip = 'IPADDR=%s' % clone.prip
                     break
             else:
                 clone.prip = raw_input('Primary IP Address: ')
-                if val(clone.prip):
+                if valid_ip(clone.prip):
                     clone.new_prip = 'IPADDR=%s' % clone.prip
                     break
         while True:
             if preconf == 1:
                 clone.prnm = raw_input('Primary Netmask[%s]: '
                                        % vmconf.prnm) or vmconf.prnm
-                if val(clone.prnm):
+                if valid_ip(clone.prnm):
                     clone.new_prnm = 'NETMASK=%s' % clone.prnm
                     break
             else:
                 clone.prnm = raw_input('Primary Netmask: ')
-                if val(clone.prnm):
+                if valid_ip(clone.prnm):
                     clone.new_prnm = 'NETMASK=%s' % clone.prnm
                     break
         # Calculate Gateway based on IP & Netmask
@@ -507,7 +522,7 @@ def main(preconf):
             while True:
                 clone.prgw = raw_input('Primary Gateway IP[%s]: '
                                        % clone.prgw) or clone.prgw
-                if val(clone.prgw):
+                if valid_ip(clone.prgw):
                     clone.new_prgw = 'GATEWAY=%s' % clone.prgw
                     break
         else:
@@ -515,36 +530,36 @@ def main(preconf):
                 if preconf == 1:
                     clone.prgw = raw_input('Primary Gateway IP[%s]: '
                                            % vmconf.prgw) or vmconf.prgw
-                    if val(clone.prgw):
+                    if valid_ip(clone.prgw):
                         clone.new_prgw = 'GATEWAY=%s' % clone.prgw
                         break
                 else:
                     clone.prgw = raw_input('Primary Gateway IP: ')
-                    if val(clone.prgw):
+                    if valid_ip(clone.prgw):
                         clone.new_prgw = 'GATEWAY=%s' % clone.prgw
                         break
         while True:
             if preconf == 1:
                 clone.bkip = raw_input('Backup IP Address[%s]: '
                                        % vmconf.bkip) or vmconf.bkip
-                if val(clone.bkip):
+                if valid_ip(clone.bkip):
                     clone.new_bkip = 'IPADDR=%s' % clone.bkip
                     break
             else:
                 clone.bkip = raw_input('Backup IP Address: ')
-                if val(clone.bkip):
+                if valid_ip(clone.bkip):
                     clone.new_bkip = 'IPADDR=%s' % clone.bkip
                     break
         while True:
             if preconf == 1:
                 clone.bknm = raw_input('Backup Netmask[%s]: '
                                        % vmconf.bknm) or vmconf.bknm
-                if val(clone.bknm):
+                if valid_ip(clone.bknm):
                     clone.new_bknm = 'NETMASK=%s' % clone.bknm
                     break
             else:
                 clone.bknm = raw_input('Backup Netmask: ')
-                if val(clone.bknm):
+                if valid_ip(clone.bknm):
                     clone.new_bknm = 'NETMASK=%s' % clone.bknm
                     break
         # Calculate Gateway based on IP & Netmask
@@ -554,7 +569,7 @@ def main(preconf):
             while True:
                 clone.bkgw = raw_input('Backup Gateway IP[%s]: '
                                        % clone.bkgw) or clone.bkgw
-                if val(clone.bkgw):
+                if valid_ip(clone.bkgw):
                     clone.new_bkgw = 'GATEWAY=%s' % clone.bkgw
                     break
         else:
@@ -562,12 +577,12 @@ def main(preconf):
                 if preconf == 1:
                     clone.bkgw = raw_input('Backup Gateway IP[%s]: '
                                            % vmconf.bkgw) or vmconf.bkgw
-                    if val(clone.bkgw):
+                    if valid_ip(clone.bkgw):
                         clone.new_bkgw = 'GATEWAY=%s' % clone.bkgw
                         break
                 else:
                     clone.bkgw = raw_input('Backup Gateway IP: ')
-                    if val(clone.bkgw):
+                    if valid_ip(clone.bkgw):
                         clone.new_bkgw = 'GATEWAY=%s' % clone.bkgw
                         break
         print("\n" * 2 + "Saving configuration (see vmconf.py)")
@@ -593,6 +608,7 @@ if __name__ == "__main__":
     try:
         from netaddr import IPNetwork
     except ImportError:
+        print('Installing python-netaddr library..')
         netmod = subprocess.Popen(['yum', 'install', 'python-netaddr', '-y'],
                                   stdout=DEVNULL, stderr=subprocess.STDOUT)
         if netmod.wait() == 0:
@@ -624,11 +640,13 @@ if __name__ == "__main__":
             print('\n\n' + ('=' * 45))
             print("Would you like to prepare the server for cloning?\n"
                   "Answering \'yes\' will do the following:\n"
-                  "Remove /etc/ssh/ssh_host_*\n"
-                  "Remove /etc/sysconfig/network-scripts/ifcfg-eth*\n"
-                  "Remove /etc/udev/rules.d/70-persistent-net.rules\n\n")
+                  "Remove:\n"
+                  "/etc/ssh/ssh_host_*\n"
+                  "/etc/sysconfig/network-scripts/ifcfg-eth*\n"
+                  "udev 70-persistent-net.rules (CentOS 6 Only)\n"
+                  ".. followed by a shutdown (halt)\n\n")
             clean = raw_input("Prepare to Clone? [y/N]")
-            if clean.upper() in ['Y', 'YES']:
+            if clean.lower() == 'y':
                 clean_shutdown('halt')
             else:
                 pass
