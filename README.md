@@ -1,12 +1,12 @@
 # vmclone.py
-This script assists with cloning Linux Virtual Machines.
-(This script was written for CentOS/RHEL)
+This is a script that I use for creating multiple virtual machines clones.
+Create a minimal CentOS VM and clone this project to your /root directory. Now
+shutdown the VM and clone. Once the new clone has booted, execute the script to 
+change the hostname and IP addresses.
 
 Assumptions:
 -----------
-- Linux distribution is CentOS/RHEL 5/6 (script may require tweaks for others)
-- The virtual machine is configured with two interfaces (Primary & Backup)
-- Default gateway on your network is the first available ip in the range
+- Linux distribution is CentOS/RHEL 6/7 (script may require tweaks for others)
 
 #### The following files will be modified:
 
@@ -14,9 +14,7 @@ Assumptions:
 
 /etc/sysconfig/network - HOSTNAME
 
-/etc/sysconfig/network-scripts/ifcfg-eth0 - IP, NETMASK, GATEWAY, MAC, UUID
-
-/etc/sysconfig/network-scripts/ifcfg-eth1 - IP, NETMASK, GATEWAY, MAC, UUID
+/etc/sysconfig/network-scripts/ifcfg-<interface> - IP, NETMASK, GATEWAY, MAC, UUID
 
 /etc/ntp.conf - NTP SERVERS (ntp servers specified in settings)
 
@@ -28,7 +26,7 @@ Assumptions:
 You will be prompted whether you would like to un-identify the server and
 shutdown. This will remove the following files:
 
-/etc/udev/rules.d/70-persistent-net.rules
+/etc/udev/rules.d/70-persistent-net.rules (CentOS 6)
 
 /etc/ssh/ssh_host_*
 
@@ -41,6 +39,8 @@ This will allow the system to re-generate the files upon next (re)boot.
 ```
 
 **Available parameters:**
+
+*none* - Display current interface names and associated MAC addresses
 
 *check* - Tests Nameservers and NTP servers outlined in settings (no files written)
 
