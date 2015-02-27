@@ -2,8 +2,7 @@
 # domain = 'example.com'
 # hosts = 'test_files/hosts-sample'  # hosts
 # network = 'test_files/network-sample'  # network
-# p_ifcfg = 'test_files/p_ifcfg-sample'  # ifcfg-eth0
-# b_ifcfg = 'test_files/b_ifcfg-sample'  # ifcfg-eth1
+# ifcfg_path = 'test_files' # Path to ifcfg-<interface>
 # persistent = 'test_files/persistent-sample'  # 70-persistent-net.rules
 # ntpconf = 'test_files/ntp-sample'  # ntp.conf
 # resolvconf = 'test_files/resolv-sample'  # resolve.conf
@@ -13,11 +12,10 @@
 domain = 'example.com'
 hosts = '/etc/hosts'
 network = '/etc/sysconfig/network'
-p_ifcfg = '/etc/sysconfig/network-scripts/ifcfg-eth0'
-b_ifcfg = '/etc/sysconfig/network-scripts/ifcfg-eth1'
+ifcfg_path = '/etc/sysconfig/network-scripts'
 persistent = '/etc/udev/rules.d/70-persistent-net.rules'
 ntpconf = '/etc/ntp.conf'
-resolvconf = '/etc/resolv.conf'  # resolve.conf
+resolvconf = '/etc/resolv.conf'
 # # Live End ##################################################################
 
 #### List of possible nameservers #

@@ -1,5 +1,5 @@
 *.pyc
 *.idea
-vmconf.py
+vmconf.json
 settings.py
 TODO.md

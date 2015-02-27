@@ -281,15 +281,18 @@ def clean_shutdown(option):
     have unique MAC addresses and ssh host keys.
     """
     if int(get_release()) <= 6:
-        print("deleting %s" % persistent)
-        os.remove(persistent)
+        if os.path.isfile(persistent):
+            print("deleting %s" % persistent)
+            os.remove(persistent)
     for sshfile in glob.glob('/etc/ssh/ssh_host_*'):
-        print("deleting %s" % sshfile)
-        os.remove(sshfile)
-    for i in get_interfaces():
-        i_cfg = "%s/ifcfg-%s" % (ifcfg_path, i)
-        if os.path.isfile(i_cfg):
-            print("deleting %s" % i_cfg)
+        if os.path.isfile(sshfile):
+            print("deleting %s" % sshfile)
+            os.remove(sshfile)
+    for i_cfg in glob.glob('%s/ifcfg-*' % ifcfg_path):
+        if re.match(r'^.*ifcfg-lo$', i_cfg):
+            continue
+        else:
+            backup_file(i_cfg)
             os.remove(i_cfg)
     sleep(2)
     if option == 'halt':
