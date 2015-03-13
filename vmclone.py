@@ -493,24 +493,24 @@ def config_interface(preconf, interface):
         clone.gw = IPNetwork('%s/%s' % (clone.ip, prcidr))[1].format()
         while True:
             clone.gw = raw_input('Primary Gateway IP[%s]: '
-                                   % clone.gw) or clone.gw
+                                 % clone.gw) or clone.gw
             if valid_ip(clone.gw):
                 clone.new_gw = 'GATEWAY=%s' % clone.gw
                 break
-        else:
-            while True:
-                if preconf == 1:
-                    gw = vmconf[interface]['gw']
-                    clone.gw = raw_input('Primary Gateway IP[%s]: '
-                                           % gw) or gw
-                    if valid_ip(clone.gw):
-                        clone.new_gw = 'GATEWAY=%s' % clone.gw
-                        break
-                else:
-                    clone.gw = raw_input('Primary Gateway IP: ')
-                    if valid_ip(clone.gw):
-                        clone.new_gw = 'GATEWAY=%s' % clone.gw
-                        break
+    else:
+        while True:
+            if preconf == 1:
+                gw = vmconf[interface]['gw']
+                clone.gw = raw_input('Primary Gateway IP[%s]: '
+                                       % gw) or gw
+                if valid_ip(clone.gw):
+                    clone.new_gw = 'GATEWAY=%s' % clone.gw
+                    break
+            else:
+                clone.gw = raw_input('Primary Gateway IP: ')
+                if valid_ip(clone.gw):
+                    clone.new_gw = 'GATEWAY=%s' % clone.gw
+                    break
     clone.interfaces[interface] = {'ip': clone.ip,
                                    'nm': clone.nm,
                                    'gw': clone.gw}
